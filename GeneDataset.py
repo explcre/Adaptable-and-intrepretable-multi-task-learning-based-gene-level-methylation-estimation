@@ -14,8 +14,9 @@ from models.vanilla_vae import VanillaVAE as VAE
 
 class GeneDataset(Dataset):
     #传递数据路径，csv路径 ，数据增强方法
-    def __init__(self, dir_path='',csv='', transform=None, target_transform=None,latent_dim=5):
+    def __init__(self, dir_path='',csv='', transform=None, target_transform=None,latent_dim=5,index=0):
         super(GeneDataset, self).__init__()
+        self.index=index
         #一个个往列表里面加绝对路径
         '''self.path = []
         #读取csv
@@ -38,11 +39,10 @@ class GeneDataset(Dataset):
         train_file = "data_all.txt"
         label_file = "label_all.txt"
         self.train_data = pd.read_table(train_file, index_col=0)
-        train_label = pd.read_table(label_file, index_col=0).values.ravel()
+        self.train_label = pd.read_table(label_file, index_col=0).values.ravel()
         data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                      'radical_data': radical_data, 'cube_data': cube_data}
-        model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
-                      'L1': Lasso, 'L2': Ridge, 'VAE': VAE(len(self.train_data), latent_dim)}
+
         platform = "platform.json"
         data_type = "origin_data"
         model_type = "VAE"
@@ -56,20 +56,23 @@ class GeneDataset(Dataset):
         print('Now start training gene...')
 
         data_train = data_dict[data_type](self.train_data)
-        for gene in gene_dict:
+        for i,gene in enumerate(gene_dict):
             count += 1
-            gene_data_train = []
-            for residue in data_train.index:
-                if residue in gene_dict[gene]:
-                    gene_data_train.append(data_train.loc[residue])
-            if len(gene_data_train) == 0:
-                print('Contained Nan data, has been removed!')
-                continue
+            self.gene_data_train = []
+            if self.index == i:
+                for residue in data_train.index:
+                    if residue in gene_dict[gene]:
+                        self.gene_data_train.append(data_train.loc[residue])
+                if len(self.gene_data_train) == 0:
+                    print('Contained Nan data, has been removed!')
+                    continue
 
-            self.gene_data_train = np.array(gene_data_train)
-            gene_list.append(gene)
-            print('Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
-                int(count * 100 / num)) + '% ...')
+                self.gene_data_train = np.array(self.gene_data_train)
+                gene_list.append(gene)
+                print('Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
+                    int(count * 100 / num)) + '% ...')
+                model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
+                              'L1': Lasso, 'L2': Ridge, 'VAE': VAE(len(gene), latent_dim)}
 
 
     #最关键的部分，在这里使用前面的方法

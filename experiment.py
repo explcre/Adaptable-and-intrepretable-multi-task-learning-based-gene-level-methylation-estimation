@@ -10,7 +10,7 @@ from torchvision import transforms
 import torchvision.utils as vutils
 from torchvision.datasets import CelebA
 from torch.utils.data import DataLoader
-import GeneDataset
+from GeneDataset import *
 import pandas as pd
 from data_dict import *
 from sklearn.linear_model import LinearRegression
@@ -24,13 +24,15 @@ class VAEXperiment(pl.LightningModule):
 
     def __init__(self,
                  vae_model: BaseVAE,
-                 params: dict) -> None:
+                 params: dict,
+                 idx: int) -> None:
         super(VAEXperiment, self).__init__()
-
+        self.idx = idx
         self.model = vae_model
         self.params = params
         self.curr_device = None
         self.hold_graph = False
+
         try:
             self.hold_graph = self.params['retain_first_backpass']
         except:
@@ -146,17 +148,17 @@ class VAEXperiment(pl.LightningModule):
         transform = self.data_transforms()
 
         if self.params['dataset'] == 'celeba':
-            dataset = CelebA(root = self.params['data_path'],
+            self.dataset = CelebA(root = self.params['data_path'],
                              split = "train",
                              transform=transform,
                              download=False)
+            self.num_train_imgs = len(self.dataset)
         elif self.params['dataset'] == 'gene':
-            dataset=GeneDataset()
+            self.dataset = GeneDataset( dir_path='',csv='', transform=None, target_transform=None,latent_dim=5,index=self.idx)
+            self.num_train_imgs = len(self.dataset)
         else:
             raise ValueError('Undefined dataset type')
-
-        self.num_train_imgs = len(dataset)
-        return DataLoader(dataset,
+        return DataLoader(self.dataset,
                           batch_size= self.params['batch_size'],
                           shuffle = True,
                           drop_last=True)
@@ -175,11 +177,36 @@ class VAEXperiment(pl.LightningModule):
                                                  drop_last=True)
             self.num_val_imgs = len(self.sample_dataloader)
         elif self.params['dataset'] == 'gene':
-            dataset = GeneDataset()
+            self.sample_dataloader = DataLoader(GeneDataset( dir_path='',csv='', transform=None, target_transform=None,latent_dim=5,index=self.idx),
+                                                batch_size=144,
+                                                shuffle=True,
+                                                drop_last=True)
+            self.num_val_imgs = len(self.sample_dataloader)
+            #dataset = GeneDataset()
         else:
             raise ValueError('Undefined dataset type')
 
         return self.sample_dataloader
+    '''
+    def _lazy_train_dataloader(self):
+        transform = self.data_transforms()
+
+        if self.params['dataset'] == 'celeba':
+            self.dataset = CelebA(root=self.params['data_path'],
+                             split="train",
+                             transform=transform,
+                             download=False)
+            self.num_train_imgs = len(self.dataset)
+        elif self.params['dataset'] == 'gene':
+            self.dataset = GeneDataset(dir_path='', csv='', transform=None, target_transform=None, latent_dim=5, index=idx)
+            self.num_train_imgs = len(self.dataset)
+        else:
+            raise ValueError('Undefined dataset type')
+        return DataLoader(self.dataset,
+                          batch_size=self.params['batch_size'],
+                          shuffle=True,
+                          drop_last=True)
+    '''
 
     def data_transforms(self):
 

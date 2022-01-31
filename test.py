@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression
 from sklearn.feature_selection import chi2
-from elm import ELMClassifier
+from ReGear.elm import ELMClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
@@ -20,17 +20,21 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 import warnings
+
 warnings.filterwarnings("ignore")
 import sys
+
 stdsc = StandardScaler()
+
 
 def load_data(filename, labelname):
     data = pd.read_table(filename, index_col=0)
     label = pd.read_table(labelname, index_col=0).values.ravel()
     return data, label
 
-def classfiers(X, Y,times,fold):
-    #Using six classifiers to do cross validation for X and Y times fold.
+
+def classfiers(X, Y, times, fold):
+    # Using six classifiers to do cross validation for X and Y times fold.
     classifier = [SVC(kernel='linear'), GaussianNB(), KNeighborsClassifier(), DecisionTreeClassifier(random_state=10),
                   GradientBoostingClassifier(random_state=10), ELMClassifier()]
     acc_res = []
@@ -52,7 +56,8 @@ def classfiers(X, Y,times,fold):
         acc_res.append(np.mean(each_score))
     return acc_res
 
-def IFS_validation(X, Y, times,fold,select,tag):
+
+def IFS_validation(X, Y, times, fold, select, tag):
     feature_order = X.columns
     list_gene = []
     result = []
@@ -60,14 +65,15 @@ def IFS_validation(X, Y, times,fold,select,tag):
     for i in range(1, len(feature_order) + 1):
         print(i)
         list_gene.append(feature_order[:i])
-        result.append(classfiers(X[feature_order[:i]].values, Y,times,fold))
+        result.append(classfiers(X[feature_order[:i]].values, Y, times, fold))
     score = pd.DataFrame(result)
     col = ['SVM', 'NBayes', 'KNN', 'DTree', 'GBDT', 'ELM']
     score.columns = col
     score.index = list(map(lambda x: ','.join(x), list_gene))
     score.to_csv(tag + "_" + select + "_Acc_" + str(times) + "_runs_" + str(fold) + "_fold.csv")
 
-def TRank(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def TRank(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "Trank"
     X = data
     print(select + ' selection start...')
@@ -80,7 +86,7 @@ def TRank(data, label,times,fold,cnt,tag,geneOrResidue):
     for gene in p_data.index:
         data1 = p_data.loc[gene]
         data2 = n_data.loc[gene]
-        res.append(stats.ttest_ind(data1,data2).pvalue)
+        res.append(stats.ttest_ind(data1, data2).pvalue)
     result = pd.DataFrame({geneOrResidue: p_data.index, 'pvalue': res}).sort_values(by='pvalue')
     print(select + " result.head()")
     print(result.head())
@@ -93,11 +99,12 @@ def TRank(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
     # print(cur_X)
-    IFS_validation(cur_X, label,times,fold, select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def WRank(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def WRank(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "Wrank"
     X = data
     print(select + ' selection start...')
@@ -123,11 +130,12 @@ def WRank(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
     # print(cur_X)
-    IFS_validation(cur_X, label,times,fold, select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def Chi2(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def Chi2(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "Chi2"
     print('Chi2 selection start...')
     X = data.T
@@ -149,11 +157,12 @@ def Chi2(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X = data.loc[result[geneOrResidue]]
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
-    IFS_validation(cur_X, label, times,fold,select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def ROCRank(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def ROCRank(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "ROCrank"
     print('ROCRank start...')
     X = data.T
@@ -178,11 +187,12 @@ def ROCRank(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X = data.loc[result[geneOrResidue]]
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
-    IFS_validation(cur_X, label,times,fold, select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def RF(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def RF(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "RF"
     print('RF selection start...')
     X = data.T
@@ -201,15 +211,16 @@ def RF(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X = data.loc[result[geneOrResidue]]
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
-    IFS_validation(cur_X, label,times,fold, select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def SVM_RFE(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def SVM_RFE(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "SVM_RFE"
     print("SVM_RFE selection start...")
 
-    if geneOrResidue != "gene"and len(data)>20000:  # top 20000 pvalue
+    if geneOrResidue != "gene" and len(data) > 20000:  # top 20000 pvalue
         order = pd.read_csv(tag + '_Trank_rank.txt', index_col=0).iloc[list(range(20000))]
         # print(order)
         X = data.loc[order.index]
@@ -231,14 +242,15 @@ def SVM_RFE(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X = data.loc[result[geneOrResidue]]
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
-    IFS_validation(cur_X, label,times,fold, select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def LR_RFE(data, label,times,fold,cnt,tag,geneOrResidue):
+
+def LR_RFE(data, label, times, fold, cnt, tag, geneOrResidue):
     select = "LR_RFE"
     print(select + " selection start...")
-    if geneOrResidue != "gene" and len(data)>20000:
+    if geneOrResidue != "gene" and len(data) > 20000:
         order = pd.read_csv(tag + '_Trank_rank.txt', index_col=0).iloc[list(range(20000))]
         # print(order)
         X = data.loc[order.index]
@@ -261,30 +273,32 @@ def LR_RFE(data, label,times,fold,cnt,tag,geneOrResidue):
     cur_X = data.loc[result[geneOrResidue]]
     cur_X.to_csv(tag + "_" + select + "_" + str(cnt) + "_result.csv")
     cur_X = cur_X.T
-    IFS_validation(cur_X, label,times,fold, select,tag)
+    IFS_validation(cur_X, label, times, fold, select, tag)
     print(select + ' IFS validation finish...')
     print("------------------------")
 
-def select_feature(code,data,label,gene=True,times=20,fold=5,cnt=100):
+
+def select_feature(code, data, label, gene=True, times=20, fold=5, cnt=100):
     if gene:
-        geneOrResidue="gene"
+        geneOrResidue = "gene"
     else:
-        geneOrResidue="residue"
+        geneOrResidue = "residue"
 
-    tag = code + "_" + geneOrResidue # Prefix for result file
-    #methods
-    methods= [TRank(data, label,times,fold,cnt,tag,geneOrResidue),
-              WRank(data, label,times,fold,cnt,tag,geneOrResidue),
-              Chi2(data, label,times,fold,cnt,tag,geneOrResidue),
-              ROCRank(data, label,times,fold,cnt,tag,geneOrResidue),
-              RF(data, label,times,fold,cnt,tag,geneOrResidue),
-              SVM_RFE(data, label,times,fold,cnt,tag,geneOrResidue),
-              LR_RFE(data, label,times,fold,cnt,tag,geneOrResidue)]
+    tag = code + "_" + geneOrResidue  # Prefix for result file
+    # methods
+    # methods = [TRank(data, label, times, fold, cnt, tag, geneOrResidue),
+    #            WRank(data, label, times, fold, cnt, tag, geneOrResidue),
+    #            Chi2(data, label, times, fold, cnt, tag, geneOrResidue),
+    #            ROCRank(data, label, times, fold, cnt, tag, geneOrResidue),
+    #            RF(data, label, times, fold, cnt, tag, geneOrResidue),
+    #            SVM_RFE(data, label, times, fold, cnt, tag, geneOrResidue),
+    #            LR_RFE(data, label, times, fold, cnt, tag, geneOrResidue)]
+    #
+    # for method in methods:
+    #     method
+    TRank(data, label, times, fold, cnt, tag, geneOrResidue)
 
-    for method in methods:
-        method
-
-if __name__=='__main__':
+if __name__ == '__main__':
     # Parameter description：
     # code: dataSet ID such as GSE66695
     # filename:The name of the feature data file for feature selection(.txt)
@@ -294,9 +308,9 @@ if __name__=='__main__':
     # fold：fold of cross validation score
     # cnt:Number of features for IFS
 
-    #example
-    code="GSE66695"
-    filename="GSE66695_gene_level(origin_data_LinearRegression).txt"
-    labelname="label_test.txt"
+    # example
+    code = "GSE66695"
+    filename = "GSE66695_gene_level(origin_data_RandomForest).txt"
+    labelname = "label_test.txt"
     data, label = load_data(filename, labelname)
-    select_feature(code,data,label,gene=True) # feature type is residue
+    select_feature(code, data, label, gene=True)  # feature type is residue

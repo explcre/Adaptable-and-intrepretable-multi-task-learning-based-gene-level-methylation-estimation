@@ -3,25 +3,46 @@ import os
 import json
 import numpy as np
 import pandas as pd
+import torch
 from scipy import stats
 import pickle
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import Ridge
-from models.vanilla_vae import VanillaVAE as VAE
-from data_dict import *
+from torch import nn
+
+import AutoEncoder as AE
 import warnings
 
 warnings.filterwarnings("ignore")
 
+
+def origin_data(data):
+    return data
+
+
+def square_data(data):
+    return data ** 2
+
+
+def log_data(data):
+    return np.log(data + 1e-5)
+
+
+def radical_data(data):
+    return data ** (1 / 2)
+
+
+def cube_data(data):
+    return data ** 3
 
 
 def predict(code, X_test, platform, pickle_file, model_type, data_type):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression, 'L1': Lasso,
-                  'L2': Ridge, 'VAE': VAE}
+                  'L2': Ridge,'AE':AE.Autoencoder}
 
     with open(platform, 'r') as f:
         gene_dict = json.load(f)
@@ -44,12 +65,55 @@ def predict(code, X_test, platform, pickle_file, model_type, data_type):
                         gene_data_test.append(data_test.loc[residue])
                 gene_data_test = np.array(gene_data_test)
                 gene_list.append(gene)
+                print("gene_data_test")
+                print(gene_data_test)
+                print("gene_list")
+                print(gene_list)
                 # print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
-                model = temp[1]
-                pred2 = model.predict(gene_data_test.T)
+                model = temp[1] # deleted
+                #model=LinearRegression(gene_data_test)
+                if(model_type=='AE'):
+                    hidden_size = 10
+                    model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
+                    #images = AE.to_var(gene_data_test.T.view(gene_data_test.T.size(0), -1))
+                    #images = images.float()
+                    gene_data_test=torch.from_numpy(gene_data_test)
+                    gene_data_test=AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
+                    gene_data_test=gene_data_test.float()
+                    out = model(gene_data_test)
+                    out=out.view(out.size(0), -1)
+                    pred2 = out.detach().numpy()
+                    ##########################################################################
+                    '''
+                    num_epochs = 50
+                    batch_size = 100
+                    hidden_size = 10
+                    dataset = gene_data_test  # dsets.MNIST(root='../data',
+                    # train=True,
+                    # transform=transforms.ToTensor(),
+                    # download=True)
+                    data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                              batch_size=batch_size,
+                                                              shuffle=True)
+                    for i, (images) in enumerate(data_loader):
+                        images = AE.to_var(images.view(images.size(0), -1))
+                        images=images.float()
+                        out = model(images)
+                        pred2=out
+                        criterion = nn.BCELoss()
+                        loss = criterion(out, images)
+                    '''
+                    #########################################################################
+                else:
+                    pred2 = model.predict(gene_data_test.T)
+
                 if count == 1:
                     data_test_pred = pred2.T
                 else:
+                    print("data_test_pred")
+                    print(data_test_pred)
+                    print("pred2.T")
+                    print(pred2.T)
                     data_test_pred = np.vstack([data_test_pred, pred2.T])
                 print('finish!')
 
@@ -75,9 +139,9 @@ if __name__ == '__main__':
     test_file = "data_test.txt"
     platform = "platform.json"
     pickle_file = "GSE66695_LinearRegression_origin_datatrain_model.pickle"
-    model_type = "VAE"
+    model_type = "LinearRegression"
     data_type = "origin_data"
 
     test_data = pd.read_table(test_file, index_col=0)
 
-    # predict(code,test_data,platform,pickle_file,model_type, data_type)
+    predict(code,test_data,platform,pickle_file,model_type, data_type)

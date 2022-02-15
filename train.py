@@ -68,10 +68,13 @@ def run(code, X_train, y_train, platform, model_type, data_type):
 
     data_train = data_dict[data_type](X_train)
 
+    gene_data_train = []
+    residuals_name = []
+
     for (i,gene) in enumerate(gene_dict):
         count += 1
-        gene_data_train = []
-        residuals_name = []
+        #gene_data_train = []
+        #residuals_name = []
         for residue in data_train.index:
             if residue in gene_dict[gene]:
                 gene_data_train.append(data_train.loc[residue])
@@ -80,125 +83,103 @@ def run(code, X_train, y_train, platform, model_type, data_type):
             # print('Contained Nan data, has been removed!')
             continue
 
-        gene_data_train = np.array(gene_data_train)
+        #gene_data_train = np.array(gene_data_train)
         gene_list.append(gene)
         print('Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
             int(count * 100 / num)) + '% ...')
         print("gene_data_train.shape[1]")
-        print(gene_data_train.shape[1])
-        if(model_type=="VAE" or model_type=="AE"):
-            num_epochs = 50
-            batch_size = 100
-            hidden_size = 10
-            dataset = gene_data_train#dsets.MNIST(root='../data',
-                                  #train=True,
-                                  #transform=transforms.ToTensor(),
-                                  #download=True)
-            data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                                      batch_size=batch_size,
-                                                      shuffle=True)
-            print("gene_data_train.shape")
-            print(gene_data_train.shape)
-            ae = AE.Autoencoder(in_dim=gene_data_train.shape[1], h_dim=hidden_size)
-            if torch.cuda.is_available():
-                ae.cuda()
-
-            criterion = nn.BCELoss()
-            optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
-            iter_per_epoch = len(data_loader)
-            data_iter = iter(data_loader)
+        print(np.array(gene_data_train).shape[1])
 
 
-            # save fixed inputs for debugging
-            fixed_x = next(data_iter)#fixed_x, _ = next(data_iter)
-            mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-            myfile = 'real_image_%s_%d.png' % (code, i)
-            images_path = os.path.join(mydir, myfile)
-            torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
-            fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
-
-
-            for epoch in range(num_epochs):
-                t0 = time()
-                for i, (images) in enumerate(data_loader):#for i, (images, _) in enumerate(data_loader):
-
-                    # flatten the image
-                    images = AE.to_var(images.view(images.size(0), -1))
-                    images=images.float()
-                    out = ae(images)
-                    loss = criterion(out, images)
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-
-                    if (i + 1) % 100 == 0:
-                        print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
-                              % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
-                                 time() - t0))  # original version: loss.item() was loss.data[0]
-
-                if (epoch+1) % 10 == 0:
-                    # save the reconstructed images
-                    fixed_x=fixed_x.float()
-                    reconst_images = ae(fixed_x)
-                    reconst_images = reconst_images.view(reconst_images.size(0),gene_data_train.shape[1])#reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
-                    mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-                    myfile = 'reconst_images_%s_%d_epoch%d.png' % (code, i, (epoch + 1))
-                    reconst_images_path = os.path.join(mydir, myfile)
-                    torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
-                ##################
-                model = model_dict[model_type]()
-
-            if count == 1:
-                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
-                    pickle.dump((gene, ae), f)#pickle.dump((gene, model), f)
-            else:
-                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
-                    pickle.dump((gene, ae), f)#pickle.dump((gene, model), f)
-        ######################################################################################
-            '''#batchsz=10
-            #train_db = tf.data.Dataset.from_tensor_slices(gene_data_train)
-            #train_db = train_db.shuffle(20).batch(batchsz)
-            print("gene_data_train=")
-            print(gene_data_train)
-            model=VAE.VAE() #VariationalAutoencoder(n_input=len(gene),n_hidden=math.sqrt(len(gene))) #(n_input=len(gene),n_layer=math.sqrt(len(gene)))
-            model.build(input_shape=(None, len(gene)))
-            model.summary()
-            optimizer=tf.keras.optimizers.Adam(0.001)
-            train_VAE(model=model,train_db=gene_data_train[0:math.floor(len(gene_data_train)/4)*4],n_input=len(gene))
-            print("after, gene_data_train=")
-            print(gene_data_train)
-            #model.partial_fit
-            #model.build(( len(gene_data_train[0]),4))
-            if count == 1:
-                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
-                    #model.build(( len(gene_data_train[0]),4))
-                    pickle.dump((gene, model), f)
-            else:
-                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
-                    #model.build((len(gene_data_train[0]), 4))
-                    pickle.dump((gene, model), f)
-            '''
-        ######################################################################################
-        else:
-            model = model_dict[model_type]()
-            model.fit(gene_data_train.T, y_train)
-            if model_type == "RandomForest":
-                print("The number of residuals involved in the gene {} is {}".format(gene, len(gene_data_train)))
-                print("The feature importance is ")
-                print(model.feature_importances_)
-                print("The names of residuals are ")
-                print(residuals_name)
-                print(15*'-')
-
-            if count == 1:
-                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
-                    pickle.dump((gene, model), f)
-            else:
-                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
-                    pickle.dump((gene, model), f)
         print('finish!')
+    gene_data_train = np.array(gene_data_train)#added line on 2-3
+    print("gene_data_train=")
+    print(gene_data_train)
+    if (model_type == "VAE" or model_type == "AE"):
+        num_epochs = 50
+        batch_size = 100
+        hidden_size = 10
+        dataset = gene_data_train  # dsets.MNIST(root='../data',
+        # train=True,
+        # transform=transforms.ToTensor(),
+        # download=True)
+        data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                  batch_size=batch_size,
+                                                  shuffle=True)
+        print("gene_data_train.shape")
+        print(gene_data_train.shape)
+        ae = AE.Autoencoder(in_dim=gene_data_train.shape[1], h_dim=hidden_size)
+        if torch.cuda.is_available():
+            ae.cuda()
 
+        criterion = nn.BCELoss()
+        optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
+        iter_per_epoch = len(data_loader)
+        data_iter = iter(data_loader)
+
+        # save fixed inputs for debugging
+        fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
+        mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+        myfile = 'real_image_%s_%d.png' % (code, i)
+        images_path = os.path.join(mydir, myfile)
+        torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
+        fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
+
+        for epoch in range(num_epochs):
+            t0 = time()
+            for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+
+                # flatten the image
+                images = AE.to_var(images.view(images.size(0), -1))
+                images = images.float()
+                out = ae(images)
+                loss = criterion(out, images)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                if (i + 1) % 100 == 0:
+                    print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
+                          % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
+                             time() - t0))  # original version: loss.item() was loss.data[0]
+
+            if (epoch + 1) % 10 == 0:
+                # save the reconstructed images
+                fixed_x = fixed_x.float()
+                reconst_images = ae(fixed_x)
+                reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[
+                    1])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
+                mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+                myfile = 'reconst_images_%s_%d_epoch%d.png' % (code, i, (epoch + 1))
+                reconst_images_path = os.path.join(mydir, myfile)
+                torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
+            ##################
+            model = model_dict[model_type]()
+
+        if count == 1:
+            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+                pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+        else:
+            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+                pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+    else:
+        model = model_dict[model_type]()
+        model.fit(gene_data_train.T, y_train)
+        if model_type == "RandomForest":
+            print("The number of residuals involved in the gene {} is {}".format(gene, len(gene_data_train)))
+            print("The feature importance is ")
+            print(model.feature_importances_)
+            print("The names of residuals are ")
+            print(residuals_name)
+            print(15 * '-')
+
+        if count == 1:
+            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+                pickle.dump((gene, model), f)
+        else:
+            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+                pickle.dump((gene, model), f)
     print("Training finish!")
 
 

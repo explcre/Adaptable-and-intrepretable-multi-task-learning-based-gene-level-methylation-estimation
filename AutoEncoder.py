@@ -1,6 +1,7 @@
 import os
 
 import torch
+import math
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 import torchvision
@@ -38,14 +39,18 @@ def to_var(x):
 class Autoencoder(nn.Module):
     def __init__(self, in_dim=784, h_dim=400):
         super(Autoencoder, self).__init__()
-
+        mid_dim=int(math.sqrt(h_dim * in_dim))
         self.encoder = nn.Sequential(
-            nn.Linear(in_dim, h_dim),
+            nn.Linear(in_dim, mid_dim),
+            nn.ReLU(),
+            nn.Linear(mid_dim, h_dim),
             nn.ReLU()
             )
 
         self.decoder = nn.Sequential(
-            nn.Linear(h_dim, in_dim),
+            nn.Linear(h_dim, mid_dim),
+            nn.ReLU(),#nn.Sigmoid()
+            nn.Linear(mid_dim, in_dim),
             nn.Sigmoid()
             )
 

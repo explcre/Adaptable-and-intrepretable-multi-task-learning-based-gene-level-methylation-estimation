@@ -38,7 +38,7 @@ def cube_data(data):
     return data ** 3
 
 
-def predict(code, X_test, platform, pickle_file, model_type, data_type):
+def predict(code, X_test, platform, pickle_file, model_type, data_type,model):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression, 'L1': Lasso,
@@ -53,72 +53,113 @@ def predict(code, X_test, platform, pickle_file, model_type, data_type):
     gene_list = []
     print('Now start predict gene...')
     data_test = data_dict[data_type](X_test)
-    with open(pickle_file, 'rb') as f:
-        while True:
-            try:
-                count += 1
-                temp = pickle.load(f)
-                gene = temp[0]
-                gene_data_test = []
-                for residue in data_test.index:
-                    if residue in gene_dict[gene]:
-                        gene_data_test.append(data_test.loc[residue])
-                gene_data_test = np.array(gene_data_test)
-                gene_list.append(gene)
-                print("gene_data_test")
-                print(gene_data_test)
-                print("gene_list")
-                print(gene_list)
-                # print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
-                model = temp[1] # deleted
-                #model=LinearRegression(gene_data_test)
-                if(model_type=='AE'):
-                    hidden_size = 10
-                    model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
-                    #images = AE.to_var(gene_data_test.T.view(gene_data_test.T.size(0), -1))
-                    #images = images.float()
-                    gene_data_test=torch.from_numpy(gene_data_test)
-                    gene_data_test=AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
-                    gene_data_test=gene_data_test.float()
-                    out = model(gene_data_test)
-                    out=out.view(out.size(0), -1)
-                    pred2 = out.detach().numpy()
-                    ##########################################################################
-                    '''
-                    num_epochs = 50
-                    batch_size = 100
-                    hidden_size = 10
-                    dataset = gene_data_test  # dsets.MNIST(root='../data',
-                    # train=True,
-                    # transform=transforms.ToTensor(),
-                    # download=True)
-                    data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                                              batch_size=batch_size,
-                                                              shuffle=True)
-                    for i, (images) in enumerate(data_loader):
-                        images = AE.to_var(images.view(images.size(0), -1))
-                        images=images.float()
-                        out = model(images)
-                        pred2=out
-                        criterion = nn.BCELoss()
-                        loss = criterion(out, images)
-                    '''
-                    #########################################################################
-                else:
-                    pred2 = model.predict(gene_data_test.T)
 
-                if count == 1:
-                    data_test_pred = pred2.T
-                else:
-                    print("data_test_pred")
-                    print(data_test_pred)
-                    print("pred2.T")
-                    print(pred2.T)
-                    data_test_pred = np.vstack([data_test_pred, pred2.T])
-                print('finish!')
+    if False:
+        data_test_pred=None
 
-            except EOFError:
-                break
+        gene_data_test=data_test
+        # model=LinearRegression(gene_data_test)
+        if (model_type == 'AE'):
+            hidden_size = 15
+            print("gene_data_test.shape")
+            print(gene_data_test.shape)
+            # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
+            model = torch.load('network.pth')  # load network from parameters saved in network.pth @ 22-2-18
+            # images = AE.to_var(gene_data_test.T.view(gene_data_test.T.size(0), -1))
+            # images = images.float()
+            #gene_data_test = torch.from_numpy(gene_data_test)
+            gene_data_test = AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
+            gene_data_test = gene_data_test.float()
+            out = model(gene_data_test)
+            out = out.view(out.size(0), -1)
+            pred2 = out.detach().numpy()
+
+        else:
+            pred2 = model.predict(gene_data_test.T)
+
+        if count == 1:
+            data_test_pred = pred2.T
+        else:
+            print("data_test_pred")
+            print(data_test_pred)
+            print("pred2.T")
+            print(pred2.T)
+            data_test_pred = np.vstack([data_test_pred, pred2.T])
+        print('finish!')
+
+
+    if True:
+        with open(pickle_file, 'rb') as f:
+            while True:
+                try:
+                    count += 1
+                    temp = pickle.load(f)
+                    gene = temp[0]
+                    gene_data_test = []
+                    for residue in data_test.index:
+                        if residue in gene_dict[gene]:
+                            gene_data_test.append(data_test.loc[residue])
+                    gene_data_test = np.array(gene_data_test)
+                    gene_list.append(gene)
+                    print("gene_data_test")
+                    print(gene_data_test)
+                    print("gene_list")
+                    print(gene_list)
+                    # print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
+                    model = temp[1] # deleted
+
+                    #model=LinearRegression(gene_data_test)
+                    if(model_type=='AE'):
+                        hidden_size = 15
+                        print("gene_data_test.shape")
+                        print(gene_data_test.shape)
+                        #model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
+                        model = torch.load('network.pth')#load network from parameters saved in network.pth @ 22-2-18
+                        #images = AE.to_var(gene_data_test.T.view(gene_data_test.T.size(0), -1))
+                        #images = images.float()
+                        gene_data_test=torch.from_numpy(gene_data_test)
+                        gene_data_test=AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
+                        gene_data_test=gene_data_test.float()
+                        out = model(gene_data_test.T)
+                        out=out.view(out.size(0), -1)
+                        pred2 = out.detach().numpy()
+                        ##########################################################################
+                        '''
+                        num_epochs = 50
+                        batch_size = 100
+                        hidden_size = 10
+                        dataset = gene_data_test  # dsets.MNIST(root='../data',
+                        # train=True,
+                        # transform=transforms.ToTensor(),
+                        # download=True)
+                        data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                                  batch_size=batch_size,
+                                                                  shuffle=True)
+                        for i, (images) in enumerate(data_loader):
+                            images = AE.to_var(images.view(images.size(0), -1))
+                            images=images.float()
+                            out = model(images)
+                            pred2=out
+                            criterion = nn.BCELoss()
+                            loss = criterion(out, images)
+                        '''
+                        #########################################################################
+                    else:
+                        pred2 = model.predict(gene_data_test.T)
+
+                    if count == 1:
+                        data_test_pred = pred2.T
+                    else:
+                        print("data_test_pred")
+                        print(data_test_pred)
+                        print("pred2.T")
+                        print(pred2.T)
+                        data_test_pred = np.vstack([data_test_pred, pred2.T])
+                    print('finish!')
+
+                except EOFError:
+                    break
+
 
     data_test_pred = pd.DataFrame(np.array(data_test_pred), index=gene_list)
     data_test_pred.to_csv(code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt", sep='\t')

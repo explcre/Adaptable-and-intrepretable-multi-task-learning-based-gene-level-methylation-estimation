@@ -4,6 +4,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
+import csv  # 调用数据保存文件
 import pickle
 from scipy import stats
 from sklearn.linear_model import LinearRegression
@@ -70,7 +71,7 @@ def run(code, X_train, y_train, platform, model_type, data_type):
 
     gene_data_train = []
     residuals_name = []
-
+    model=None
     for (i,gene) in enumerate(gene_dict):
         count += 1
         #gene_data_train = []
@@ -85,21 +86,30 @@ def run(code, X_train, y_train, platform, model_type, data_type):
 
         #gene_data_train = np.array(gene_data_train)
         gene_list.append(gene)
-        print('Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
+        print('No.'+str(i)+'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
             int(count * 100 / num)) + '% ...')
         print("gene_data_train.shape[1]")
         print(np.array(gene_data_train).shape[1])
 
-
+        if count == 1:
+            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+                pickle.dump((gene, model), f)
+        else:
+            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+                pickle.dump((gene, model), f)
         print('finish!')
+
     gene_data_train = np.array(gene_data_train)#added line on 2-3
     print("gene_data_train=")
     print(gene_data_train)
+    ae=None
     if (model_type == "VAE" or model_type == "AE"):
-        num_epochs = 50
-        batch_size = 100
+        num_epochs = 100
+        batch_size = 50#gene_data_train.shape[0]#100#809
         hidden_size = 10
-        dataset = gene_data_train  # dsets.MNIST(root='../data',
+        dataset = gene_data_train.T#.flatten()#gene_data_train.view(gene_data_train.size[0], -1)
+        #dataset = gene_data_train  # dsets.MNIST(root='../data',
+
         # train=True,
         # transform=transforms.ToTensor(),
         # download=True)
@@ -108,7 +118,9 @@ def run(code, X_train, y_train, platform, model_type, data_type):
                                                   shuffle=True)
         print("gene_data_train.shape")
         print(gene_data_train.shape)
-        ae = AE.Autoencoder(in_dim=gene_data_train.shape[1], h_dim=hidden_size)
+        print("dataset.shape")
+        print(dataset.shape)
+        ae = AE.Autoencoder(in_dim=gene_data_train.shape[0], h_dim=500)#in_dim=gene_data_train.shape[1]
         if torch.cuda.is_available():
             ae.cuda()
 
@@ -117,15 +129,17 @@ def run(code, X_train, y_train, platform, model_type, data_type):
         iter_per_epoch = len(data_loader)
         data_iter = iter(data_loader)
 
+
         # save fixed inputs for debugging
         fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
         mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-        myfile = 'real_image_%s_%d.png' % (code, i)
+        myfile = 'real_image_%s_batch%d_2-18_3.png' % (code, i + 1)
         images_path = os.path.join(mydir, myfile)
         torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
         fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
 
         for epoch in range(num_epochs):
+
             t0 = time()
             for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
 
@@ -138,20 +152,28 @@ def run(code, X_train, y_train, platform, model_type, data_type):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
+                ##########################################################
+                fixed_x = fixed_x.float()
+                reconst_images = ae(fixed_x)
+                reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
+                mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+                myfile = 'reconst_images_%s_batch%d_epoch%d_2-18_3.png' % (code, i + 1, (epoch + 1))
+                reconst_images_path = os.path.join(mydir, myfile)
+                torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
+                #########################################################
                 if (i + 1) % 100 == 0:
                     print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
                           % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
                              time() - t0))  # original version: loss.item() was loss.data[0]
 
+
             if (epoch + 1) % 10 == 0:
                 # save the reconstructed images
                 fixed_x = fixed_x.float()
                 reconst_images = ae(fixed_x)
-                reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[
-                    1])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
+                reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
                 mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-                myfile = 'reconst_images_%s_%d_epoch%d.png' % (code, i, (epoch + 1))
+                myfile = 'reconst_images_%s_batch%d_epoch%d_2-18_3.png' % (code, i+1, (epoch + 1))
                 reconst_images_path = os.path.join(mydir, myfile)
                 torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
             ##################
@@ -163,6 +185,8 @@ def run(code, X_train, y_train, platform, model_type, data_type):
         else:
             with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+
+        torch.save(ae, 'network.pth')#save the whole network
     else:
         model = model_dict[model_type]()
         model.fit(gene_data_train.T, y_train)
@@ -181,6 +205,7 @@ def run(code, X_train, y_train, platform, model_type, data_type):
             with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
+    return ae
 
 
 def train_VAE(model,train_db,optimizer=tf.keras.optimizers.Adam(0.001),n_input=80):

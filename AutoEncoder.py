@@ -40,6 +40,12 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim=784, h_dim=400):
         super(Autoencoder, self).__init__()
         mid_dim=int(math.sqrt(h_dim * in_dim))
+        q1_dim=int(math.sqrt(h_dim * mid_dim))
+        q3_dim=int(math.sqrt(mid_dim * in_dim))
+        # nn.Linear(q3_dim, mid_dim),
+        # nn.ReLU(),
+        # nn.Linear(mid_dim, q1_dim),
+        # nn.ReLU(),
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, mid_dim),
             nn.ReLU(),
@@ -47,6 +53,10 @@ class Autoencoder(nn.Module):
             nn.ReLU()
             )
 
+        # nn.Linear(q1_dim, mid_dim),
+        # nn.ReLU(),
+        # nn.Linear(mid_dim, q3_dim),
+        # nn.ReLU(),
         self.decoder = nn.Sequential(
             nn.Linear(h_dim, mid_dim),
             nn.ReLU(),#nn.Sigmoid()

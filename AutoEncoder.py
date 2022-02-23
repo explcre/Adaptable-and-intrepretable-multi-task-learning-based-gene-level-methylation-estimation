@@ -72,6 +72,47 @@ class Autoencoder(nn.Module):
         out = self.encoder(x)
         out = self.decoder(out)
         return out
+    def code(self,x):
+        out = self.encoder(x)
+        return out
+
+
+
+
+class NN(nn.Module):
+    def __init__(self, in_dim=784, h_dim=400):
+        super(NN, self).__init__()
+        mid_dim=int(math.sqrt(h_dim * in_dim))
+        q1_dim=int(math.sqrt(h_dim * mid_dim))
+        q3_dim=int(math.sqrt(mid_dim * in_dim))
+        # nn.Linear(q3_dim, mid_dim),
+        # nn.ReLU(),
+        # nn.Linear(mid_dim, q1_dim),
+        # nn.ReLU(),
+        self.encoder = nn.Sequential(
+            nn.Linear(in_dim, mid_dim),
+            nn.ReLU(),
+            nn.Linear(mid_dim, h_dim),
+            nn.ReLU(),
+            nn.Linear(h_dim, mid_dim),
+            nn.ReLU(),  # nn.Sigmoid()
+            nn.Linear(mid_dim, 1),
+            nn.Sigmoid()
+            )
+
+
+
+
+    def forward(self, x):
+        """
+        Note: image dimension conversion will be handled by external methods
+        """
+        out = self.encoder(x)
+        #out = self.decoder(out)
+        return out
+    def code(self,x):
+        out = self.encoder(x)
+        return out
 
 '''
 ae = Autoencoder(in_dim=

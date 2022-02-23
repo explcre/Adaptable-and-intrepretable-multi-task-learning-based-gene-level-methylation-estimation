@@ -52,7 +52,7 @@ def cube_data(data):
 
 
 # Only train regression model, save parameters to pickle file
-def run(code, X_train, y_train, platform, model_type, data_type):
+def run(code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainAE,toTrainNN):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
@@ -86,10 +86,11 @@ def run(code, X_train, y_train, platform, model_type, data_type):
 
         #gene_data_train = np.array(gene_data_train)
         gene_list.append(gene)
+
         print('No.'+str(i)+'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
-            int(count * 100 / num)) + '% ...')
-        print("gene_data_train.shape[1]")
-        print(np.array(gene_data_train).shape[1])
+                int(count * 100 / num)) + '% ...')
+        #print("gene_data_train.shape[1]")
+        #print(np.array(gene_data_train).shape[1])
 
         if count == 1:
             with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
@@ -104,89 +105,180 @@ def run(code, X_train, y_train, platform, model_type, data_type):
     print(gene_data_train)
     ae=None
     if (model_type == "VAE" or model_type == "AE"):
-        num_epochs = 100
-        batch_size = 50#gene_data_train.shape[0]#100#809
-        hidden_size = 10
-        dataset = gene_data_train.T#.flatten()#gene_data_train.view(gene_data_train.size[0], -1)
-        #dataset = gene_data_train  # dsets.MNIST(root='../data',
+        if toTrainAE:
+            num_epochs = 100
+            batch_size = 79#gene_data_train.shape[0]#100#809
+            hidden_size = 10
+            dataset = gene_data_train.T#.flatten()#gene_data_train.view(gene_data_train.size[0], -1)
+            #dataset = gene_data_train  # dsets.MNIST(root='../data',
 
-        # train=True,
-        # transform=transforms.ToTensor(),
-        # download=True)
-        data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                                  batch_size=batch_size,
-                                                  shuffle=True)
-        print("gene_data_train.shape")
-        print(gene_data_train.shape)
-        print("dataset.shape")
-        print(dataset.shape)
-        ae = AE.Autoencoder(in_dim=gene_data_train.shape[0], h_dim=500)#in_dim=gene_data_train.shape[1]
-        if torch.cuda.is_available():
-            ae.cuda()
+            # train=True,
+            # transform=transforms.ToTensor(),
+            # download=True)
+            data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                      batch_size=batch_size,
+                                                      shuffle=True)
+            print("gene_data_train.shape")
+            print(gene_data_train.shape)
+            print("dataset.shape")
+            print(dataset.shape)
+            ae = AE.Autoencoder(in_dim=gene_data_train.shape[0], h_dim=HIDDEN_DIMENSION)#in_dim=gene_data_train.shape[1]
+            if torch.cuda.is_available():
+                ae.cuda()
 
-        criterion = nn.BCELoss()
-        optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
-        iter_per_epoch = len(data_loader)
-        data_iter = iter(data_loader)
-
-
-        # save fixed inputs for debugging
-        fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
-        mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-        myfile = 'real_image_%s_batch%d_2-18_3.png' % (code, i + 1)
-        images_path = os.path.join(mydir, myfile)
-        torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
-        fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
-
-        for epoch in range(num_epochs):
-
-            t0 = time()
-            for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
-
-                # flatten the image
-                images = AE.to_var(images.view(images.size(0), -1))
-                images = images.float()
-                out = ae(images)
-                loss = criterion(out, images)
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                ##########################################################
-                fixed_x = fixed_x.float()
-                reconst_images = ae(fixed_x)
-                reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
-                mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-                myfile = 'reconst_images_%s_batch%d_epoch%d_2-18_3.png' % (code, i + 1, (epoch + 1))
-                reconst_images_path = os.path.join(mydir, myfile)
-                torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
-                #########################################################
-                if (i + 1) % 100 == 0:
-                    print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
-                          % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
-                             time() - t0))  # original version: loss.item() was loss.data[0]
+            criterion = nn.BCELoss()
+            optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
+            iter_per_epoch = len(data_loader)
+            data_iter = iter(data_loader)
 
 
-            if (epoch + 1) % 10 == 0:
-                # save the reconstructed images
-                fixed_x = fixed_x.float()
-                reconst_images = ae(fixed_x)
-                reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
-                mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-                myfile = 'reconst_images_%s_batch%d_epoch%d_2-18_3.png' % (code, i+1, (epoch + 1))
-                reconst_images_path = os.path.join(mydir, myfile)
-                torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
-            ##################
-            model = model_dict[model_type]()
+            # save fixed inputs for debugging
+            fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
+            mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+            myfile = '2-22real_image_%s_batch%d.png' % (code, i + 1)
+            images_path = os.path.join(mydir, myfile)
+            torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
+            fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
 
-        if count == 1:
-            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
-                pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
-        else:
-            with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
-                pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+            for epoch in range(num_epochs):
 
-        torch.save(ae, 'network.pth')#save the whole network
+                t0 = time()
+                for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+
+                    # flatten the image
+                    images = AE.to_var(images.view(images.size(0), -1))
+                    images = images.float()
+                    out = ae(images)
+                    loss = criterion(out, images)
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                    if (i + 1) % 100 == 0:
+                        print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
+                              % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
+                                 time() - t0))  # original version: loss.item() was loss.data[0]
+
+
+                if (epoch + 1) % 1 == 0:
+                    # save the reconstructed images
+                    fixed_x = fixed_x.float()
+                    reconst_images = ae(fixed_x)
+                    reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
+                    mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+                    myfile = '2-22reconst_images_%s_batch%d_epoch%d.png' % (code, i+1, (epoch + 1))
+                    reconst_images_path = os.path.join(mydir, myfile)
+                    torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
+                ##################
+                model = model_dict[model_type]()
+
+            if count == 1:
+                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+                    pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+            else:
+                with open(code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+                    pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+
+            torch.save(ae, 'auto-encoder.pth')#save the whole autoencoder network
+################################################################
+        #the following is the embedding to y prediction
+        if(toTrainNN):
+            ae=torch.load('auto-encoder.pth')
+            embedding=ae.code(torch.tensor(gene_data_train.T).float())
+
+            embedding_df = pd.DataFrame(np.array(embedding.detach().numpy()))
+            embedding_df.to_csv(code + "_gene_level" + "(" + data_type + '_' + model_type + "_embedding).txt", sep='\t')
+
+            print("embedding is ")
+            print(embedding)
+            print(embedding.shape)
+            num_epochs = 100
+            batch_size = 79 # gene_data_train.shape[0]#100#809
+            hidden_size = 10
+            dataset = gene_data_train.T  # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
+            # dataset = gene_data_train  # dsets.MNIST(root='../data',
+
+            # train=True,
+            # transform=transforms.ToTensor(),
+            # download=True)
+            data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                      batch_size=batch_size,
+                                                      shuffle=True)
+            print("gene_data_train.shape")
+            print(gene_data_train.shape)
+            print("dataset.shape")
+            print(dataset.shape)
+            #ae = AE.Autoencoder(in_dim=gene_data_train.shape[0], h_dim=79 * 5)  # in_dim=gene_data_train.shape[1]
+            fcn=AE.NN(in_dim=HIDDEN_DIMENSION, h_dim=HIDDEN_DIMENSION)
+            if torch.cuda.is_available():
+                fcn.cuda()
+
+            criterion = nn.BCELoss()
+            optimizer = torch.optim.Adam(fcn.parameters(), lr=0.001)
+            iter_per_epoch = len(data_loader)
+            data_iter = iter(data_loader)
+
+            # save fixed inputs for debugging
+            fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
+            mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+            myfile = '2-22nn_real_image_%s_batch%d.png' % (code, i + 1)
+            images_path = os.path.join(mydir, myfile)
+            torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
+            fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
+
+            for epoch in range(num_epochs):
+
+                t0 = time()
+                for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+
+                    # flatten the image
+                    images = AE.to_var(images.view(images.size(0), -1))
+                    images = images.float()
+                    #embedding
+                    embedding_=ae.code(images)
+                    out = fcn(embedding_)
+                    print("out at tain.py nn ")
+                    print(out)
+                    print(out.shape)
+                    print(out.float())
+                    print(out.float().shape)
+                    print(out[0])
+                    print(out[0].shape)
+                    print("torch.tensor(y_train).float() at tain.py nn ")
+                    print(torch.tensor(y_train).float())
+                    print(torch.tensor(y_train).float().shape)
+                    print(torch.tensor(y_train).float().T)
+                    print(torch.tensor(y_train).float().T.shape)
+                    #y_train=AE.to_var(y_train.view(y_train.size(0), -1))
+                    out=torch.reshape(out, (-1,))
+                    print("out after reshape")
+                    print(out.shape)
+                    print(out)
+
+                    loss = criterion(out, torch.tensor(y_train).float().T)
+
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                    if (i + 1) % 100 == 0:
+                        print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
+                              % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
+                                 time() - t0))  # original version: loss.item() was loss.data[0]
+
+                if (epoch + 1) % 1 == 0:
+                    fixed_x = fixed_x.float()
+                    embedding_out = ae.code(torch.tensor(fixed_x).float())
+                    reconst_images = fcn(embedding_out)
+                    reconst_images = reconst_images.view(reconst_images.size(0),
+                                                         -1)  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
+                    mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+                    myfile = '2-22nn_reconst_images_%s_batch%d_epoch%d.png' % (code, i + 1, (epoch + 1))
+                    reconst_images_path = os.path.join(mydir, myfile)
+                    torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
+            torch.save(fcn, 'fully-connected-network.pth')
     else:
         model = model_dict[model_type]()
         model.fit(gene_data_train.T, y_train)

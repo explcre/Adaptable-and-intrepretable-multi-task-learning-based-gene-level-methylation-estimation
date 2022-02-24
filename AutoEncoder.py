@@ -47,20 +47,28 @@ class Autoencoder(nn.Module):
         # nn.Linear(mid_dim, q1_dim),
         # nn.ReLU(),
         self.encoder = nn.Sequential(
-            nn.Linear(in_dim, mid_dim),
+            nn.Linear(in_dim, q3_dim),
             nn.ReLU(),
-            nn.Linear(mid_dim, h_dim),
-            nn.ReLU()
-            )
+            nn.Linear(q3_dim, mid_dim),
+            nn.ReLU(),
+            nn.Linear(mid_dim, q1_dim),
+            nn.ReLU(),  # nn.Sigmoid()
+            nn.Linear(q1_dim, h_dim),
+            nn.ReLU()#nn.Sigmoid()
+        )
 
         # nn.Linear(q1_dim, mid_dim),
         # nn.ReLU(),
         # nn.Linear(mid_dim, q3_dim),
         # nn.ReLU(),
         self.decoder = nn.Sequential(
-            nn.Linear(h_dim, mid_dim),
+            nn.Linear(h_dim, q1_dim),
             nn.ReLU(),#nn.Sigmoid()
-            nn.Linear(mid_dim, in_dim),
+            nn.Linear(q1_dim, mid_dim),
+            nn.ReLU(),
+            nn.Linear(mid_dim, q3_dim),
+            nn.ReLU(),
+            nn.Linear(q3_dim, in_dim),
             nn.Sigmoid()
             )
 
@@ -90,13 +98,13 @@ class NN(nn.Module):
         # nn.Linear(mid_dim, q1_dim),
         # nn.ReLU(),
         self.encoder = nn.Sequential(
-            nn.Linear(in_dim, mid_dim),
+            nn.Linear(in_dim, q3_dim),
             nn.ReLU(),
-            nn.Linear(mid_dim, h_dim),
+            nn.Linear(q3_dim, mid_dim),
             nn.ReLU(),
-            nn.Linear(h_dim, mid_dim),
+            nn.Linear(mid_dim, q1_dim),
             nn.ReLU(),  # nn.Sigmoid()
-            nn.Linear(mid_dim, 1),
+            nn.Linear(q1_dim, 1),
             nn.Sigmoid()
             )
 

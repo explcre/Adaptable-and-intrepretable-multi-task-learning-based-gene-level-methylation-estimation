@@ -14,7 +14,8 @@ from torch import nn
 
 import AutoEncoder as AE
 import warnings
-
+from keras.models import load_model
+from keras.models import Model  # 泛型模型
 warnings.filterwarnings("ignore")
 
 
@@ -131,25 +132,34 @@ def predict(date,code, X_test, platform, pickle_file, model_type, data_type,mode
                 except EOFError:
                     break
         if(model_type=='AE') :
+            loaded_autoencoder = load_model(date + 'AE.h5')
+            loaded_fcn = load_model(date + 'FCN.h5')
             gene_data_test = np.array(gene_data_test)
-            hidden_size = 15
+            #hidden_size = 15
             print("gene_data_test.shape")
             print(gene_data_test.shape)
+            '''
             model_ae=torch.load(date+'_auto-encoder.pth')
-            # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
             model_nn = torch.load(date+'_fully-connected-network.pth')  # load network from parameters saved in network.pth @ 22-2-18
-            # images = AE.to_var(gene_data_test.T.view(gene_data_test.T.size(0), -1))
-            # images = images.float()
             gene_data_test = torch.from_numpy(gene_data_test)
             gene_data_test = AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
             gene_data_test = gene_data_test.float()
             embedding = model_ae.code(gene_data_test.T)
+            '''
+
+            input_to_encoding_model = Model(inputs=loaded_autoencoder.input,
+                                       outputs=loaded_autoencoder.get_layer('input_to_encoding').output)
+            # embedding=ae.code(torch.tensor(gene_data_train.T).float())
+            embedding = input_to_encoding_model.predict(gene_data_test.T)
+
             print("predicting:after ae, embedding is ")
             print(embedding)
             print(embedding.shape)
-            out = model_nn(embedding)
-            out = out.view(out.size(0), -1)
-            data_test_pred = out.detach().numpy()
+            out = loaded_fcn(embedding)
+            print("prediction is")
+            print(out)
+            #out = out.view(out.size(0), -1)
+            data_test_pred = out.numpy()
             #print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
 
             '''if count == 1:

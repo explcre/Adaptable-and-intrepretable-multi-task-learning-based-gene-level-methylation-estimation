@@ -8,10 +8,10 @@ python ./main.py
 
 ## Research Project Background
 This project mainly focus on topics on methylation, which is a phenomenon in DNA which will cause dysfunction. We want use residual methylation data to predict the diseases.
-However, the dimension of redidual is enormous and the sample is comparatively fewer. Therefore, we want to propose a method to reduce the dimension and improve the performance.
+However, the dimension of residual is enormous and the sample is comparatively fewer. Therefore, we want to propose a method to reduce the dimension and improve the performance.
 
 We extract the information from residual methylation to get gene-level methylation, which is much lower in dimension.
-Moreover, the gene-level methylation may give us some common and critical information which can be transferred among different dataset. We can use some represention learning method to extract the feature of the mechanism of gene-level methylation.
+Moreover, the gene-level methylation may give us some common and critical information which can be transferred among different datasets. We can use some represention learning method to extract the feature of the mechanism of gene-level methylation.
 
 
 

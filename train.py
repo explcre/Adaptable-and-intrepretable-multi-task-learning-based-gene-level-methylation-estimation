@@ -1,5 +1,12 @@
 # data_train.py
 import re
+#from resVAE.resvae import resVAE
+#import resVAE.utils as cutils
+#from resVAE.config import config
+#import resVAE.reporting as report
+from keras.models import Model  # 泛型模型
+from keras.layers import Dense, Input
+from keras.models import load_model
 import os
 import json
 import numpy as np
@@ -53,7 +60,7 @@ def cube_data(data):
 
 
 # Only train regression model, save parameters to pickle file
-def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainAE,toTrainNN):
+def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainAE,toTrainNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
@@ -104,10 +111,48 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
     gene_data_train = np.array(gene_data_train)#added line on 2-3
     print("gene_data_train=")
     print(gene_data_train)
-    ae=None
-    if (model_type == "VAE" or model_type == "AE"):
+    #ae=None
+    autoencoder=None
+    fcn=None
+    if (model_type == "VAE" or model_type == "AE"or model_type == "MeiNN"):
+        encoding_dim = 400
         if toTrainAE:
-            num_epochs = 5000
+            in_dim = 809
+            # 压缩特征维度至400维
+            mid_dim = math.sqrt(in_dim * encoding_dim)
+            q3_dim =math.sqrt(in_dim * mid_dim)
+            q1_dim=math.sqrt(encoding_dim * mid_dim)
+            # this is our input placeholder
+            input = Input(shape=(in_dim,))
+            # 编码层
+            encoded = Dense(q3_dim, activation='relu')(input)
+            encoded = Dense(mid_dim, activation='relu')(encoded)
+            encoded = Dense(q1_dim, activation='relu')(encoded)
+            encoder_output = Dense(encoding_dim,name="input_to_encoding")(encoded)
+
+            # 解码层
+            decoded = Dense(q1_dim, activation='relu')(encoder_output)
+            decoded = Dense(mid_dim, activation='relu')(decoded)
+            decoded = Dense(q3_dim, activation='relu')(decoded)
+            decoded = Dense(in_dim, activation='tanh')(decoded)
+
+            # 构建自编码模型
+            autoencoder = Model(inputs=input, outputs=decoded)
+
+            # 构建编码模型
+            encoder = Model(inputs=input, outputs=encoder_output)
+
+            # compile autoencoder
+            autoencoder.compile(optimizer='adam', loss='binary_crossentropy') #loss='mse'
+
+            # training
+            autoencoder.fit(gene_data_train.T, gene_data_train.T, epochs=20, batch_size=79, shuffle=True)
+            print("AE finish_fitting")
+            autoencoder.save(date+'AE.h5')
+            print("AE finish saving model")
+            #loaded_autoencoder = load_model(date+'AE.h5')
+            '''
+            num_epochs = AE_epoch_from_main
             batch_size = 79#gene_data_train.shape[0]#100#809
             hidden_size = 10
             dataset = gene_data_train.T#.flatten()#gene_data_train.view(gene_data_train.size[0], -1)
@@ -190,19 +235,55 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
                     pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
 
             torch.save(ae, date+'_auto-encoder.pth')#save the whole autoencoder network
+        '''
 ################################################################
         #the following is the embedding to y prediction
         if(toTrainNN):
-            ae=torch.load(date+'_auto-encoder.pth')
-            embedding=ae.code(torch.tensor(gene_data_train.T).float())
+            #ae=torch.load(date+'_auto-encoder.pth')
+            loaded_autoencoder = load_model(date + 'AE.h5')
 
-            embedding_df = pd.DataFrame(np.array(embedding.detach().numpy()))
+            input_to_encoding_model = Model(inputs=loaded_autoencoder.input,
+                                       outputs=loaded_autoencoder.get_layer('input_to_encoding').output)
+            # embedding=ae.code(torch.tensor(gene_data_train.T).float())
+            embedding = input_to_encoding_model.predict(gene_data_train.T)
+
+
+            embedding_df = pd.DataFrame(embedding)
             embedding_df.to_csv(date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + "_embedding).txt", sep='\t')
 
             print("embedding is ")
             print(embedding)
             print(embedding.shape)
-            num_epochs = 5000
+
+            in_dim = encoding_dim
+            # output dimension is 1
+            out_dim = 1
+
+            mid_dim = math.sqrt(in_dim * encoding_dim)
+            q3_dim = math.sqrt(in_dim * mid_dim)
+            q1_dim = math.sqrt(encoding_dim * mid_dim)
+            # this is our input placeholder
+            input = Input(shape=(in_dim,))
+
+            # 编码层
+            out_x = Dense(q3_dim, activation='relu')(input)
+            out_x = Dense(mid_dim, activation='relu')(out_x)
+            out_x = Dense(q1_dim, activation='relu')(out_x)
+            output = Dense(out_dim,activation='sigmoid',name="prediction")(out_x)
+
+
+            # build the fcn model
+            fcn = Model(inputs=input, outputs=output)
+            # compile fcn
+            fcn.compile(optimizer='adam', loss='binary_crossentropy')  # loss='mse'
+            # training
+            fcn.fit(embedding, y_train.T, epochs=20, batch_size=79, shuffle=True)
+            print("FCN finish_fitting")
+            fcn.save(date + 'FCN.h5')
+            print("FCN finish saving model")
+
+            '''
+            num_epochs = NN_epoch_from_main
             batch_size = 79 # gene_data_train.shape[0]#100#809
             hidden_size = 10
             dataset = gene_data_train.T  # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
@@ -286,6 +367,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             NN_loss_list_df.to_csv(
                 date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_NN_loss).csv",
                 sep='\t')
+        '''
     else:
         model = model_dict[model_type]()
         model.fit(gene_data_train.T, y_train)
@@ -304,7 +386,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
-    return ae
+    return (autoencoder,fcn)
 
 
 def train_VAE(model,train_db,optimizer=tf.keras.optimizers.Adam(0.001),n_input=80):

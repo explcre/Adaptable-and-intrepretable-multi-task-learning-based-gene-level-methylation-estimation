@@ -5,25 +5,25 @@ from predict import predict
 from test import select_feature
 import torch
 torch.set_printoptions(profile="full")
-from torchsummary import summary
+#from torchsummary import summary
 code = "GSE66695"
 platform = "platform.json"
 model_type = "AE"#"RandomForest"
 predict_model_type="L2"
 data_type = "origin_data"
 dataset_type="train"
-isTrain=False
-toTrainAE=False
-toTrainNN=False
+isTrain=True
+toTrainAE=True
+toTrainNN=True
 isPredict=True
 model=None
-AE_epoch=20
-NN_epoch=20
+AE_epoch=100
+NN_epoch=100
 ae=None
 fcn=None
-date='3-5-kerasAE-lr-epoch%d'%AE_epoch
+date='3-6-kerasAE-regular-try7-lr-epoch%d'%AE_epoch
 
-
+'''
 def print_model_summary_pytorch():
     print('###############################################################')
     file = open(date + "ae_detail.csv", mode='w', encoding='utf-8')
@@ -38,7 +38,7 @@ def print_model_summary_pytorch():
         file.write(name+':'+str(parameters.size()))
         file.write(str(parameters))
     print('###############################################################')
-
+'''
 
 print(np.random.randint(0,2,(100,200)))
 # train

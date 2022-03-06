@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import Ridge
 from torch import nn
-
+from keras import backend as K
 import AutoEncoder as AE
 import warnings
 from keras.models import load_model
@@ -132,7 +132,14 @@ def predict(date,code, X_test, platform, pickle_file, model_type, data_type,mode
                 except EOFError:
                     break
         if(model_type=='AE') :
-            loaded_autoencoder = load_model(date + 'AE.h5')
+            relu_thresh=0
+            l_rate=K.variable(0.01)
+            def relu_advanced(x):
+                return K.relu(x, threshold=relu_thresh)
+            # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
+            def variable_l1(weight_matrix):
+                return l_rate * K.sum(K.abs(weight_matrix))
+            loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
             loaded_fcn = load_model(date + 'FCN.h5')
             gene_data_test = np.array(gene_data_test)
             #hidden_size = 15

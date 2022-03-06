@@ -27,14 +27,17 @@ import VAE
 import tensorflow as tf
 import torch
 from torch import nn
-import torchvision
+#import torchvision
 from torch.autograd import Variable
 #import AutoEncoder
 import math
 import warnings
 import AutoEncoder as AE
 from time import time
-
+from keras import layers
+from keras import losses
+from keras import regularizers
+from keras import backend as K
 
 warnings.filterwarnings("ignore")
 
@@ -116,12 +119,95 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
     fcn=None
     if (model_type == "VAE" or model_type == "AE"or model_type == "MeiNN"):
         encoding_dim = 400
+        latent_dim =400
         if toTrainAE:
+            decoder_regularizer='var_l1'
+            decoder_regularizer_initial=0.0001
+            activ = 'relu'
+            latent_scale=5
+            l_rate=K.variable(0.01)
+            relu_thresh=0
+            decoder_bn=False
+            decoder_bias='last'
+            last_activ='tanh'#'softmax'
             in_dim = 809
             # 压缩特征维度至400维
             mid_dim = math.sqrt(in_dim * encoding_dim)
             q3_dim =math.sqrt(in_dim * mid_dim)
             q1_dim=math.sqrt(encoding_dim * mid_dim)
+            decoder_shape=[encoding_dim,q1_dim,mid_dim,q3_dim]
+            input_shape=(809)
+            if decoder_regularizer == 'dot_weights':
+                dot_weights = np.zeros(shape=(latent_scale * latent_dim, latent_scale * latent_dim))
+                for s in range(latent_dim):
+                    dot_weights[s * latent_scale:s * latent_scale + latent_scale,
+                    s * latent_scale:s * latent_scale + latent_scale] = 1
+
+            # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
+            def variable_l1(weight_matrix):
+                return l_rate * K.sum(K.abs(weight_matrix))
+
+            # L2 regularizer with the scaling factor updateable through the l_rate variable (callback)
+            def variable_l2(weight_matrix):
+                return l_rate * K.sum(K.square(weight_matrix))
+
+            # Mixed L1 and L2 regularizer, updateable scaling. TODO: Consider implementing different scaling factors for L1 and L2 part
+            def variable_l1_l2(weight_matrix):
+                return l_rate * (K.sum(K.abs(weight_matrix)) + K.sum(K.square(weight_matrix))) * 0.5
+
+            # Dot product-based regularizer
+            def dotprod_weights(weights_matrix):
+                penalty_dot = l_rate * K.mean(K.square(K.dot(weights_matrix,
+                                                                  K.transpose(weights_matrix)) * dot_weights))
+                penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
+                return penalty_dot + penalty_l1
+
+            def dotprod(weights_matrix):
+                penalty_dot = l_rate * K.mean(K.square(K.dot(weights_matrix, K.transpose(weights_matrix))))
+                penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
+                return penalty_dot + penalty_l1
+
+            def dotprod_inverse(weights_matrix):
+                penalty_dot = 0.1 * K.mean(
+                    K.square(K.dot(K.transpose(weights_matrix), weights_matrix) * dot_weights))
+                penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
+                return penalty_dot + penalty_l1
+
+            def relu_advanced(x):
+                return K.relu(x, threshold=relu_thresh)
+
+            if activ == 'relu':
+                activ = relu_advanced
+            # assigns the regularizer to the scaling factor. TODO: Look for more elegant method
+            if decoder_regularizer == 'var_l1':
+                reg = variable_l1
+                reg1 = variable_l1
+            elif decoder_regularizer == 'var_l2':
+                reg = variable_l2
+                reg1 = variable_l2
+            elif decoder_regularizer == 'var_l1_l2':
+                reg = variable_l1_l2
+                reg1 = variable_l1_l2
+            elif decoder_regularizer == 'l1':
+                reg = regularizers.l1(decoder_regularizer_initial)
+                reg1 = regularizers.l1(decoder_regularizer_initial)
+            elif decoder_regularizer == 'l2':
+                reg = regularizers.l2(decoder_regularizer_initial)
+                reg1 = regularizers.l2(decoder_regularizer_initial)
+            elif decoder_regularizer == 'l1_l2':
+                reg = regularizers.l1_l2(l1=decoder_regularizer_initial, l2=decoder_regularizer_initial)
+                reg1 = regularizers.l1_l2(l1=decoder_regularizer_initial, l2=decoder_regularizer_initial)
+            elif decoder_regularizer == 'dot':
+                reg = dotprod
+                reg1 = dotprod
+            elif decoder_regularizer == 'dot_weights':
+                reg1 = dotprod_weights
+                reg = dotprod
+            else:
+                reg = None
+                reg1 = None
+
+
             # this is our input placeholder
             input = Input(shape=(in_dim,))
             # 编码层
@@ -130,14 +216,45 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             encoded = Dense(q1_dim, activation='relu')(encoded)
             encoder_output = Dense(encoding_dim,name="input_to_encoding")(encoded)
 
+            decoded = layers.Dense(q1_dim,
+                             activation=activ,
+                             name='Decoder1',
+                             activity_regularizer=reg1)(encoder_output)
+            if decoder_bn:
+                decoded = layers.BatchNormalization()(decoded)
+            # adds layers to the decoder. See encoder layers
+            if len(decoder_shape) > 1:
+                for i in range(len(decoder_shape) - 1):
+                    if decoder_bias == 'all':
+                        decoded = layers.Dense(decoder_shape[i + 1],
+                                         activation=activ,
+                                         name='Dense_D' + str(i + 2),
+                                         use_bias=True,
+                                         activity_regularizer=reg)(decoded)
+                    else:
+                        decoded = layers.Dense(decoder_shape[i + 1],
+                                         activation=activ,
+                                         name='Dense_D' + str(i + 2),
+                                         use_bias=False,
+                                         kernel_regularizer=reg)(decoded)
+                    if decoder_bn:
+                        decoded = layers.BatchNormalization()(decoded)
+
+            if decoder_bias == 'none':
+                ae_outputs = layers.Dense(input_shape,
+                                              activation=last_activ,
+                                              use_bias=False)(decoded)
+            else:
+                ae_outputs = layers.Dense(input_shape,
+                                              activation=last_activ)(decoded)
             # 解码层
-            decoded = Dense(q1_dim, activation='relu')(encoder_output)
-            decoded = Dense(mid_dim, activation='relu')(decoded)
-            decoded = Dense(q3_dim, activation='relu')(decoded)
-            decoded = Dense(in_dim, activation='tanh')(decoded)
+            #decoded = Dense(q1_dim, activation='relu')(encoder_output)
+            #decoded = Dense(mid_dim, activation='relu')(decoded)
+            #decoded = Dense(q3_dim, activation='relu')(decoded)
+            #decoded = Dense(in_dim, activation='tanh')(decoded)
 
             # 构建自编码模型
-            autoencoder = Model(inputs=input, outputs=decoded)
+            autoencoder = Model(inputs=input, outputs=ae_outputs)
 
             # 构建编码模型
             encoder = Model(inputs=input, outputs=encoder_output)
@@ -146,7 +263,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             autoencoder.compile(optimizer='adam', loss='binary_crossentropy') #loss='mse'
 
             # training
-            autoencoder.fit(gene_data_train.T, gene_data_train.T, epochs=20, batch_size=79, shuffle=True)
+            autoencoder.fit(gene_data_train.T, gene_data_train.T, epochs=AE_epoch_from_main, batch_size=79, shuffle=True)
             print("AE finish_fitting")
             autoencoder.save(date+'AE.h5')
             print("AE finish saving model")
@@ -240,7 +357,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
         #the following is the embedding to y prediction
         if(toTrainNN):
             #ae=torch.load(date+'_auto-encoder.pth')
-            loaded_autoencoder = load_model(date + 'AE.h5')
+            loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
 
             input_to_encoding_model = Model(inputs=loaded_autoencoder.input,
                                        outputs=loaded_autoencoder.get_layer('input_to_encoding').output)
@@ -269,7 +386,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             out_x = Dense(q3_dim, activation='relu')(input)
             out_x = Dense(mid_dim, activation='relu')(out_x)
             out_x = Dense(q1_dim, activation='relu')(out_x)
-            output = Dense(out_dim,activation='sigmoid',name="prediction")(out_x)
+            output = Dense(out_dim,activation='sigmoid',name="prediction")(out_x)#originally sigmoid
 
 
             # build the fcn model
@@ -277,7 +394,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             # compile fcn
             fcn.compile(optimizer='adam', loss='binary_crossentropy')  # loss='mse'
             # training
-            fcn.fit(embedding, y_train.T, epochs=20, batch_size=79, shuffle=True)
+            fcn.fit(embedding, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
             print("FCN finish_fitting")
             fcn.save(date + 'FCN.h5')
             print("FCN finish saving model")

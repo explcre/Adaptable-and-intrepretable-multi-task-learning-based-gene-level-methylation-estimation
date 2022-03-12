@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from train import run
-from predict import predict
+from train_keras import run
+from predict_keras import predict
 from test import select_feature
 import torch
 torch.set_printoptions(profile="full")
@@ -21,8 +21,9 @@ AE_epoch=100
 NN_epoch=100
 ae=None
 fcn=None
-date='3-6-kerasAE-regular-try7-lr-epoch%d'%AE_epoch
-
+h_dim=17
+date='3-11-kerasAE-regular-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
+keras=True
 '''
 def print_model_summary_pytorch():
     print('###############################################################')
@@ -45,13 +46,15 @@ print(np.random.randint(0,2,(100,200)))
 if isTrain:
     train_data = pd.read_table("data_train.txt", index_col=0)
     train_label = pd.read_table("label_train.txt", index_col=0).values.ravel()
-    (ae,fcn)=run(date,code, train_data, train_label, platform, model_type, data_type,79*5,toTrainAE,toTrainNN,AE_epoch,NN_epoch)
+    if keras:
+        (ae,fcn)=run(date,code, train_data, train_label, platform, model_type, data_type,h_dim,toTrainAE,toTrainNN,AE_epoch,NN_epoch)
+        ae.summary()
+        fcn.summary()
+if keras:
     ae.summary()
     fcn.summary()
 
-
 # predict
-
 if isPredict:
     test_data = pd.read_table("data_test.txt", index_col=0)
     predict(date,code, test_data, platform, date+"_"+code +"_"+model_type+"_"+data_type+dataset_type+"_model.pickle", model_type, data_type,model,predict_model_type)

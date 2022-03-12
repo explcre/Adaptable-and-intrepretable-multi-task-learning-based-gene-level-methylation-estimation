@@ -6,7 +6,7 @@ from test import select_feature
 import torch
 torch.set_printoptions(profile="full")
 #from torchsummary import summary
-code = "GSE66695"
+code = "GSE42861"#"GSE66695"#GSE42861_processed_methylation_matrix
 platform = "platform.json"
 model_type = "AE"#"RandomForest"
 predict_model_type="L2"
@@ -21,9 +21,15 @@ AE_epoch=100
 NN_epoch=100
 ae=None
 fcn=None
-h_dim=17
-date='3-11-kerasAE-regular-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
+h_dim=13
+date='3-12-kerasAE-regular-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
 keras=True
+path = r"./result/"
+train_dataset_filename=r"./dataset/GSE42861_processed_methylation_matrix.txt"#r"./dataset/data_train.txt"
+train_label_filename=r"./dataset/label_train.txt"
+test_dataset_filename=r"./dataset/data_test.txt"
+test_label_filename=r"./dataset/label_test.txt"
+just_check_data=True
 '''
 def print_model_summary_pytorch():
     print('###############################################################')
@@ -41,25 +47,30 @@ def print_model_summary_pytorch():
     print('###############################################################')
 '''
 
-print(np.random.randint(0,2,(100,200)))
 # train
 if isTrain:
-    train_data = pd.read_table("data_train.txt", index_col=0)
-    train_label = pd.read_table("label_train.txt", index_col=0).values.ravel()
-    if keras:
-        (ae,fcn)=run(date,code, train_data, train_label, platform, model_type, data_type,h_dim,toTrainAE,toTrainNN,AE_epoch,NN_epoch)
-        ae.summary()
-        fcn.summary()
+    train_data = pd.read_table(train_dataset_filename, index_col=0)
+    print("finish read train data")
+    train_label = pd.read_table(train_label_filename, index_col=0).values.ravel()
+    print("finish read train label")
+    print(train_data.head(10))
+    if(not just_check_data):
+        if keras:
+            (ae,fcn)=run(path,date,code, train_data, train_label, platform, model_type, data_type,h_dim,toTrainAE,toTrainNN,AE_epoch,NN_epoch)
+            ae.summary()
+            fcn.summary()
+        else:
+            run(path,date, code, train_data, train_label, platform, model_type, data_type, h_dim, toTrainAE,toTrainNN, AE_epoch, NN_epoch)
 if keras:
     ae.summary()
     fcn.summary()
 
 # predict
-if isPredict:
-    test_data = pd.read_table("data_test.txt", index_col=0)
-    predict(date,code, test_data, platform, date+"_"+code +"_"+model_type+"_"+data_type+dataset_type+"_model.pickle", model_type, data_type,model,predict_model_type)
+if isPredict and (not just_check_data):
+    test_data = pd.read_table(test_dataset_filename, index_col=0)
+    predict(path,date,code, test_data, platform, date+"_"+code +"_"+model_type+"_"+data_type+dataset_type+"_model.pickle", model_type, data_type,model,predict_model_type)
 
 # test(feature selection)
-data = pd.read_table(date+"_"+code+"_gene_level("+data_type+"_"+model_type+").txt", index_col=0)
-label = pd.read_table("label_test.txt", index_col=0).values.ravel()
+data = pd.read_table(r"./dataset/"+date+"_"+code+"_gene_level("+data_type+"_"+model_type+").txt", index_col=0)
+label = pd.read_table(test_label_filename, index_col=0).values.ravel()
 select_feature(code, data, label, gene=True)

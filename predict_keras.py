@@ -39,7 +39,7 @@ def cube_data(data):
     return data ** 3
 
 
-def predict(date,code, X_test, platform, pickle_file, model_type, data_type,model,predict_model_type):
+def predict(path,date,code, X_test, platform, pickle_file, model_type, data_type,model,predict_model_type):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression, 'L1': Lasso,
@@ -91,7 +91,7 @@ def predict(date,code, X_test, platform, pickle_file, model_type, data_type,mode
 
     gene_data_test = []
     if True:
-        with open(pickle_file, 'rb') as f:
+        with open(path+pickle_file, 'rb') as f:
             while True:
                 try:
                     count += 1
@@ -139,8 +139,8 @@ def predict(date,code, X_test, platform, pickle_file, model_type, data_type,mode
             # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
             def variable_l1(weight_matrix):
                 return l_rate * K.sum(K.abs(weight_matrix))
-            loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-            loaded_fcn = load_model(date + 'FCN.h5')
+            loaded_autoencoder = load_model(path+date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
+            loaded_fcn = load_model(path+date + 'FCN.h5')
             gene_data_test = np.array(gene_data_test)
             #hidden_size = 15
             print("gene_data_test.shape")
@@ -180,7 +180,7 @@ def predict(date,code, X_test, platform, pickle_file, model_type, data_type,mode
             print('finish!')
 
     data_test_pred = pd.DataFrame(np.array(data_test_pred))
-    data_test_pred.to_csv(date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt", sep='\t')
+    data_test_pred.to_csv(path+date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt", sep='\t')
     print("Predicting finish!")
 
 

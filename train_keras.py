@@ -21,7 +21,7 @@ from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 #import TabularAutoEncoder
-import VAE
+#import VAE
 #import tensorflow.compat.v1 as tf
 #tf.disable_v2_behavior()
 import tensorflow as tf
@@ -63,7 +63,8 @@ def cube_data(data):
 
 
 # Only train regression model, save parameters to pickle file
-def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainAE,toTrainNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000):
+def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainAE,toTrainNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000):
+
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
@@ -104,10 +105,10 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
         #print(np.array(gene_data_train).shape[1])
 
         if count == 1:
-            with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
                 pickle.dump((gene, model), f)
         else:
-            with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
         print('finish!')
 
@@ -265,7 +266,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             # training
             autoencoder.fit(gene_data_train.T, gene_data_train.T, epochs=AE_epoch_from_main, batch_size=79, shuffle=True)
             print("AE finish_fitting")
-            autoencoder.save(date+'AE.h5')
+            autoencoder.save(path+date+'AE.h5')
             print("AE finish saving model")
             #loaded_autoencoder = load_model(date+'AE.h5')
             '''
@@ -357,7 +358,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
         #the following is the embedding to y prediction
         if(toTrainNN):
             #ae=torch.load(date+'_auto-encoder.pth')
-            loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
+            loaded_autoencoder = load_model(path+date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
 
             input_to_encoding_model = Model(inputs=loaded_autoencoder.input,
                                        outputs=loaded_autoencoder.get_layer('input_to_encoding').output)
@@ -366,7 +367,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
 
 
             embedding_df = pd.DataFrame(embedding)
-            embedding_df.to_csv(date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + "_embedding).txt", sep='\t')
+            embedding_df.to_csv(path+date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + "_embedding).txt", sep='\t')
 
             print("embedding is ")
             print(embedding)
@@ -399,7 +400,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             # training
             fcn.fit(embedding, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
             print("FCN finish_fitting")
-            fcn.save(date + 'FCN.h5')
+            fcn.save(path+date + 'FCN.h5')
             print("FCN finish saving model")
 
             '''
@@ -500,10 +501,10 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
             print(15 * '-')
 
         if count == 1:
-            with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
                 pickle.dump((gene, model), f)
         else:
-            with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
     return (autoencoder,fcn)

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from train_keras import run
 from predict_keras import predict
-from test import select_feature
+#from test import select_feature
 import torch
 torch.set_printoptions(profile="full")
 #from torchsummary import summary
@@ -73,4 +73,4 @@ if isPredict and (not just_check_data):
 # test(feature selection)
 data = pd.read_table(r"./dataset/"+date+"_"+code+"_gene_level("+data_type+"_"+model_type+").txt", index_col=0)
 label = pd.read_table(test_label_filename, index_col=0).values.ravel()
-select_feature(code, data, label, gene=True)
+#select_feature(code, data, label, gene=True)

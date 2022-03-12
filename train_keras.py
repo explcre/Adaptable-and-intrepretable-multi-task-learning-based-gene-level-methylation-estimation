@@ -68,7 +68,7 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
-                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'VAE':VAE.VAE,'AE':AE.Autoencoder}
+                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'AE':AE.Autoencoder}
 
     with open(platform, 'r') as f:
         gene_dict = json.load(f)

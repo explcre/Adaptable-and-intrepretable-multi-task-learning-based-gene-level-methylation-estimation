@@ -18,6 +18,7 @@ from keras.models import load_model
 from keras.models import Model  # 泛型模型
 from keras import layers #, objectives
 from keras import losses
+#from MeiNN.MeiNN import MeiNN
 warnings.filterwarnings("ignore")
 
 
@@ -149,7 +150,10 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                 return reconstruct_loss + predict_loss
 
             #loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-            loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced,'reconstruct_and_predict_loss':reconstruct_and_predict_loss})
+            #loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced,'reconstruct_and_predict_loss':reconstruct_and_predict_loss})
+            loaded_fcn = load_model(path + date + 'FCN.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})#,
+                                    #custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
+
             gene_data_test = np.array(gene_data_test)
             #hidden_size = 15
             print("gene_data_test.shape")

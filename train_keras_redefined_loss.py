@@ -4,7 +4,8 @@ import re
 #import resVAE.utils as cutils
 #from resVAE.config import config
 #import resVAE.reporting as report
-
+from MeiNN.MeiNN import MeiNN
+from MeiNN.config import config
 import os
 import json
 import numpy as np
@@ -137,6 +138,12 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
         #encoding_dim = 400
         latent_dim =HIDDEN_DIMENSION
         if toTrainMeiNN:
+            myMeiNN=MeiNN(config,path,date,code, gene_data_train.T, y_train.T, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000,model_dir='./results/models')
+            #myMeiNN.build()
+            myMeiNN.compile()
+            #myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
+            myMeiNN.fit()
+            '''
             decoder_regularizer='var_l1'
             decoder_regularizer_initial=0.0001
             activ = 'relu'
@@ -336,100 +343,19 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
 
             # training
             '''
-            autoencoder.fit(gene_data_train.T, gene_data_train.T, epochs=AE_epoch_from_main, batch_size=79, shuffle=True)
+
+            '''
+            MeiNN.autoencoder.fit(gene_data_train.T, gene_data_train.T, epochs=AE_epoch_from_main, batch_size=79, shuffle=True)
             print("AE finish_fitting")
-            autoencoder.save(date+'AE.h5')
+            MeiNN.autoencoder.save(date+'AE.h5')
             print("AE finish saving model")
-            '''
+            
+            
 
 
-            '''
-            num_epochs = AE_epoch_from_main
-            batch_size = 79#gene_data_train.shape[0]#100#809
-            hidden_size = 10
-            dataset = gene_data_train.T#.flatten()#gene_data_train.view(gene_data_train.size[0], -1)
-            #dataset = gene_data_train  # dsets.MNIST(root='../data',
 
-            # train=True,
-            # transform=transforms.ToTensor(),
-            # download=True)
-            data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                                      batch_size=batch_size,
-                                                      shuffle=True)
-            print("gene_data_train.shape")
-            print(gene_data_train.shape)
-            print("dataset.shape")
-            print(dataset.shape)
-            ae = AE.Autoencoder(in_dim=gene_data_train.shape[0], h_dim=HIDDEN_DIMENSION)#in_dim=gene_data_train.shape[1]
-            if torch.cuda.is_available():
-                ae.cuda()
-
-            criterion = nn.BCELoss()
-            optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
-            iter_per_epoch = len(data_loader)
-            data_iter = iter(data_loader)
-
-
-            # save fixed inputs for debugging
-            fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
-            mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-            myfile = '%sreal_image_%s_batch%d.png' % (date,code, i + 1)
-            images_path = os.path.join(mydir, myfile)
-            torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
-            fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
-            AE_loss_list=[]
-            for epoch in range(num_epochs):
-
-                t0 = time()
-                for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
-
-                    # flatten the image
-                    images = AE.to_var(images.view(images.size(0), -1))
-                    images = images.float()
-                    out = ae(images)
-                    loss = criterion(out, images)
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-
-                    print(loss.item())
-                    AE_loss_list.append(loss.item())
-
-                    if (i + 1) % 100 == 0:
-                        print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
-                              % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
-                                 time() - t0))  # original version: loss.item() was loss.data[0]
-
-
-                if (epoch + 1) % 1 == 0:
-                    # save the reconstructed images
-                    fixed_x = fixed_x.float()
-                    reconst_images = ae(fixed_x)
-                    reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
-                    mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-                    myfile = '%sreconst_images_%s_batch%d_epoch%d.png' % (date,code, i+1, (epoch + 1))
-                    reconst_images_path = os.path.join(mydir, myfile)
-                    torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
-                ##################
-                model = model_dict[model_type]()
-
-
-            AE_loss_list_df = pd.DataFrame(AE_loss_list)
-            AE_loss_list_df.to_csv(
-                date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_AE_loss).csv",
-                sep='\t')
-            if count == 1:
-                with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
-                    pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
-            else:
-                with open(date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
-                    pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
-
-            torch.save(ae, date+'_auto-encoder.pth')#save the whole autoencoder network
-        '''
-################################################################
-        #the following is the embedding to y prediction
+            ################################################################
+            #the following is the embedding to y prediction
 
             #ae=torch.load(date+'_auto-encoder.pth')
 
@@ -504,7 +430,7 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
             print("embedding is ")
             print(embedding)
             print(embedding.shape)
-
+            '''
             '''
             num_epochs = NN_epoch_from_main
             batch_size = 79 # gene_data_train.shape[0]#100#809
@@ -609,7 +535,7 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
             with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
-    return (autoencoder,fcn)
+    return myMeiNN
 
 
 def train_VAE(model,train_db,optimizer=tf.keras.optimizers.Adam(0.001),n_input=80):

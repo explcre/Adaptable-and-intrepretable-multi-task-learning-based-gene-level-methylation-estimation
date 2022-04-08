@@ -156,9 +156,19 @@ class MeiNN:
                 s * latent_scale:s * latent_scale + latent_scale] = 1
 
         # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
-        def variable_l1(weight_matrix):
-            return l_rate * K.sum(K.abs(weight_matrix))
+        def variable_l1(x):
+            return l_rate * K.sum(K.abs(x))
 
+        class MyRegularizer_variable_l1(regularizers.Regularizer):
+
+            def __init__(self, l_rate=K.variable(0.01)):
+                self.l_rate = l_rate
+
+            def __call__(self, x):
+                return self.l_rate * sum(abs(x))
+
+            def get_config(self):
+                return {'l_rate': self.l_rate}
         # L2 regularizer with the scaling factor updateable through the l_rate variable (callback)
         def variable_l2(weight_matrix):
             return l_rate * K.sum(K.square(weight_matrix))
@@ -233,7 +243,7 @@ class MeiNN:
         decoded = layers.Dense(q1_dim,
                                activation=activ,
                                name='Decoder1',
-                               activity_regularizer=reg1)(encoder_output)
+                               activity_regularizer='l1')(encoder_output)
         #activity_regularizer=reg1 # originally
         if decoder_bn:
             decoded = layers.BatchNormalization()(decoded)
@@ -245,13 +255,13 @@ class MeiNN:
                                            activation=activ,
                                            name='Dense_D' + str(i + 2),
                                            use_bias=True,
-                                           activity_regularizer=reg)(decoded)
+                                           activity_regularizer='l1')(decoded)
                 else:
                     decoded = layers.Dense(decoder_shape[i + 1],
                                            activation=activ,
                                            name='Dense_D' + str(i + 2),
                                            use_bias=False,
-                                           kernel_regularizer=reg)(decoded)
+                                           kernel_regularizer='l1')(decoded)
                 if decoder_bn:
                     decoded = layers.BatchNormalization()(decoded)
 
@@ -273,7 +283,7 @@ class MeiNN:
         # decoded = Dense(q3_dim, activation='relu')(decoded)
         # decoded = Dense(in_dim, activation='tanh')(decoded)
 
-###############################################################
+        ###############################################################
         # 构建自编码模型
         self.autoencoder = Model(inputs=input, outputs=self.ae_outputs)
 
@@ -282,7 +292,8 @@ class MeiNN:
 
         # compile autoencoder
         self.autoencoder.compile(optimizer='adam', loss='binary_crossentropy')  # loss='mse'
-################################################################
+        ################################################################
+
         self.input_to_encoding_model = Model(inputs=self.autoencoder.input,
                                         outputs=self.autoencoder.get_layer('input_to_encoding').output)
 

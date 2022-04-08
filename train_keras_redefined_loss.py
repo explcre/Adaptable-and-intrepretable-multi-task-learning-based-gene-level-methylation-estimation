@@ -138,7 +138,7 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
         #encoding_dim = 400
         latent_dim =HIDDEN_DIMENSION
         if toTrainMeiNN:
-            myMeiNN=MeiNN(config,path,date,code, gene_data_train.T, y_train.T, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000,model_dir='./results/models')
+            myMeiNN=MeiNN(config,path,date,code, gene_data_train.T, y_train.T, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=AE_epoch_from_main,NN_epoch_from_main=NN_epoch_from_main,model_dir='./results/models')
             #myMeiNN.build()
             myMeiNN.compile()
             #myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)

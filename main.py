@@ -22,13 +22,13 @@ toTrainNN=True
 isPredict=True
 toTrainMeiNN=True
 model=None
-AE_epoch=100
-NN_epoch=100
+AE_epoch=1000
+NN_epoch=1000
 ae=None
 fcn=None
 myMeiNN=None
 h_dim=30
-date = '4-2-kerasAE-regular-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
+date = '4-8-kerasAE-regular-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
 keras = True
 path = r"./result/"
 isToyDataset = True
@@ -91,7 +91,7 @@ if isTrain:
     if(not just_check_data):
         if keras and toTrainMeiNN==True:
             myMeiNN = run(path, date, code, train_data, train_label, platform, model_type, data_type, h_dim,
-                          toTrainMeiNN=toTrainMeiNN, AE_epoch_from_main=AE_epoch)
+                          toTrainMeiNN=toTrainMeiNN, AE_epoch_from_main=AE_epoch,NN_epoch_from_main=NN_epoch)
             myMeiNN.fcn.summary()
             myMeiNN.autoencoder.summary()
         elif(toTrainMeiNN==False):

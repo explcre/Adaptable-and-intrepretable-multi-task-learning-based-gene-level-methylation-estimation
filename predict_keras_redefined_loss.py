@@ -16,9 +16,6 @@ import AutoEncoder as AE
 import warnings
 from keras.models import load_model
 from keras.models import Model  # 泛型模型
-from keras import layers #, objectives
-from keras import losses
-#from MeiNN.MeiNN import MeiNN
 warnings.filterwarnings("ignore")
 
 
@@ -142,18 +139,8 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
             def variable_l1(weight_matrix):
                 return l_rate * K.sum(K.abs(weight_matrix))
-
-            def reconstruct_and_predict_loss(x, ae_outputs, output, y_train):
-                reconstruct_loss = losses.binary_crossentropy(x, ae_outputs)
-                predict_loss = losses.binary_crossentropy(y_pred=output,
-                                                          y_true=y_train.T)  # - 0.5 * K.mean(1 + z_log_sigma - K.square(z_mean) - K.exp(z_log_sigma), axis=-1)
-                return reconstruct_loss + predict_loss
-
-            #loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-            #loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced,'reconstruct_and_predict_loss':reconstruct_and_predict_loss})
-            loaded_fcn = load_model(path + date + 'FCN.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})#,
-                                    #custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-
+            #loaded_autoencoder = load_model(path+date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
+            loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'relu_advanced':relu_advanced})
             gene_data_test = np.array(gene_data_test)
             #hidden_size = 15
             print("gene_data_test.shape")
@@ -172,15 +159,20 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             # embedding=ae.code(torch.tensor(gene_data_train.T).float())
             embedding = input_to_encoding_model.predict(gene_data_test.T)
 
+            fcn_predict_model = Model(inputs=loaded_fcn.input,
+                                            outputs=loaded_fcn.get_layer('prediction').output)
+
             print("predicting:after ae, embedding is ")
             print(embedding)
             print(embedding.shape)
-
-            out_fcn = loaded_fcn(gene_data_test.T)
+            [ae_out,pred_out] = loaded_fcn.predict(gene_data_test.T)
+            print("ae_out is")
+            print(ae_out)
             print("prediction is")
-            print(out_fcn)
+            print(pred_out)
+
             #out = out.view(out.size(0), -1)
-            data_test_pred = out_fcn.numpy()
+            data_test_pred = pred_out#.numpy()
             #print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
 
             '''if count == 1:
@@ -195,6 +187,9 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
 
     data_test_pred = pd.DataFrame(np.array(data_test_pred))
     data_test_pred.to_csv(path+date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt", sep='\t')
+    data_test_ae_out = pd.DataFrame(np.array(ae_out))
+    data_test_ae_out.to_csv(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
+                          sep='\t')
     print("Predicting finish!")
 
 

@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import Ridge
 from torch import nn
-from keras import backend as K
+from keras import backend as K, losses
 import AutoEncoder as AE
 import warnings
 from keras.models import load_model
@@ -139,8 +139,12 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
             def variable_l1(weight_matrix):
                 return l_rate * K.sum(K.abs(weight_matrix))
+
+            def myLoss(y_true, y_pred):
+                return losses.binary_crossentropy(y_true, y_pred)
+
             #loaded_autoencoder = load_model(path+date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-            loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'relu_advanced':relu_advanced})
+            loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'relu_advanced':relu_advanced,'myLoss':myLoss})
             gene_data_test = np.array(gene_data_test)
             #hidden_size = 15
             print("gene_data_test.shape")

@@ -28,7 +28,7 @@ ae=None
 fcn=None
 myMeiNN=None
 h_dim=30
-date = '4-8-kerasAE-regular-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
+date = '4-14-kerasAE-regular-ae-myloss-weight-h_dim=%d-lr-epoch%d'%(h_dim,AE_epoch)
 keras = True
 path = r"./result/"
 isToyDataset = True

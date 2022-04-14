@@ -90,6 +90,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
         print('finish!')
 
     gene_data_test = []
+    residue_name_list=[]
     if True:
         with open(path+pickle_file, 'rb') as f:
             while True:
@@ -100,7 +101,8 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                     if(model_type!='AE'):
                         gene_data_test = []
                     for residue in data_test.index:
-                        if residue in gene_dict[gene]:
+                        if residue in gene_dict[gene] and (residue not in residue_name_list):
+                            residue_name_list.append(residue)
                             gene_data_test.append(data_test.loc[residue])
                     if (model_type != 'AE'):
                         gene_data_test = np.array(gene_data_test)

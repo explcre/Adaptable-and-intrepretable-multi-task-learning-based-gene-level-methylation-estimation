@@ -1,10 +1,10 @@
 # data_train.py
 import re
-#from resVAE.resvae import resVAE
-#import resVAE.utils as cutils
-#from resVAE.config import config
-#import resVAE.reporting as report
-from MeiNN.MeiNN import MeiNN
+# from resVAE.resvae import resVAE
+# import resVAE.utils as cutils
+# from resVAE.config import config
+# import resVAE.reporting as report
+from MeiNN.MeiNN import MeiNN,gene_to_residue_info
 from MeiNN.config import config
 import os
 import json
@@ -19,38 +19,34 @@ from sklearn.linear_model import Lasso
 from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-#import TabularAutoEncoder
+# import TabularAutoEncoder
 import VAE
-#import tensorflow.compat.v1 as tf
-#tf.disable_v2_behavior()
+# import tensorflow.compat.v1 as tf
+# tf.disable_v2_behavior()
 import tensorflow as tf
-#tf.compat.v1.disable_eager_execution()#newly-added-3-27
+# tf.compat.v1.disable_eager_execution()#newly-added-3-27
 
 import torch
 from torch import nn
-#import torchvision
+# import torchvision
 from torch.autograd import Variable
-#import AutoEncoder
+# import AutoEncoder
 import math
 import warnings
 import AutoEncoder as AE
 from time import time
 
-#import tensorflow.keras as keras
+# import tensorflow.keras as keras
 
 from keras import layers
 
-#from keras import objectives
+# from keras import objectives
 from keras import losses
 from keras import regularizers
 from keras import backend as K
 from keras.models import Model  # 泛型模型
 from keras.layers import Dense, Input
 from keras.models import load_model
-
-
-
-
 
 warnings.filterwarnings("ignore")
 
@@ -76,11 +72,12 @@ def cube_data(data):
 
 
 # Only train regression model, save parameters to pickle file
-def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000):
+def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
-                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'VAE':VAE.VAE,'AE':AE.Autoencoder}
+                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor, 'VAE': VAE.VAE, 'AE': AE.Autoencoder}
 
     with open(platform, 'r') as f:
         gene_dict = json.load(f)
@@ -91,58 +88,113 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
     gene_list = []
     print('Now start training gene...')
 
-
     data_train = data_dict[data_type](X_train)
     print("data_train:")
     print(data_train)
-    #print("gene_dict:")
-    #print(gene_dict)
+    # print("gene_dict:")
+    # print(gene_dict)
     gene_data_train = []
     residuals_name = []
-    model=None
-    for (i,gene) in enumerate(gene_dict):
+    model = None
+    count_gene = 0
+    count_residue = 0
+    gene_to_id_map = {}
+    residue_to_id_map = {}
+
+    mode_all_gene_and_residue = False
+    for (i, gene) in enumerate(gene_dict):
         count += 1
-        #gene_data_train = []
-        #residuals_name = []
+        print("%s-th,gene=%s,gene_dict[gene]=%s" % (i, gene, gene_dict[gene]))
+        # gene_data_train = []
+        # residuals_name = []
+
+        # following added 22-4-14
+        if mode_all_gene_and_residue:
+            gene_to_id_map[gene] = count_gene
+            count_gene += 1
+            for residue in gene_dict[gene]:
+                #gene_to_residue_map[gene_to_id_map[gene]][residue_to_id_map[residue]] = 1  # added 22-4-14
+                residue_to_id_map[residue] = count_residue  # added 22-4-14
+                count_residue += 1  # added 22-4-14
+        # above added 22-4-14
+
         for residue in data_train.index:
             if residue in gene_dict[gene]:
-                gene_data_train.append(data_train.loc[residue])
-                residuals_name.append(residue)
+                if (residue not in(residuals_name)): #added 2022-4-14
+                    residuals_name.append(residue)
+                    gene_data_train.append(data_train.loc[residue])
+                # following added 22-4-14
+                if not mode_all_gene_and_residue:
+                    if gene not in gene_to_id_map:
+                        gene_to_id_map[gene] = count_gene
+                        count_gene += 1
+                        #gene_to_residue_map.append([])
+                    if residue not in residue_to_id_map:
+                        residue_to_id_map[residue] = count_residue  # added 22-4-14
+                        count_residue += 1  # added 22-4-14
+                        #gene_to_residue_map.append(1)
+
+                # above added 22-4-14
         if len(gene_data_train) == 0:
             # print('Contained Nan data, has been removed!')
             continue
 
-        #gene_data_train = np.array(gene_data_train)
+        # gene_data_train = np.array(gene_data_train)
         gene_list.append(gene)
 
-        print('No.'+str(i)+'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
-                int(count * 100 / num)) + '% ...')
-        #print("gene_data_train.shape[1]")
-        #print(np.array(gene_data_train).shape[1])
+        print('No.' + str(i) + 'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
+            int(count * 100 / num)) + '% ...')
+        # print("gene_data_train.shape[1]")
+        # print(np.array(gene_data_train).shape[1])
 
         if count == 1:
-            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
                 pickle.dump((gene, model), f)
         else:
-            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
         print('finish!')
+    # save the dictionary : following added 22-4-14
+    np.save(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)"+".txt", gene_to_id_map)
+    np.save(
+        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_to_id_map)" + ".txt",
+        residue_to_id_map)
 
-    gene_data_train = np.array(gene_data_train)#added line on 2-3
+    gene_to_residue_map = [[0 for i in range(len(residue_to_id_map)+1)]for i in range(len(gene_to_id_map)+1)]
+    count_connection=0
+    for id in gene_to_id_map:
+        if(id in gene_dict):
+            for residue in gene_dict[id]:
+                if residue in residue_to_id_map:
+                    gene_to_residue_map[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 1
+                    count_connection+=1
+
+    np.save(
+        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_residue_map)" + ".txt",
+        gene_to_residue_map)
+    # above added 22-4-14
+    gene_data_train = np.array(gene_data_train)  # added line on 2-3
     print("gene_data_train=")
     print(gene_data_train)
-    #ae=None
-    autoencoder=None
-    fcn=None
-    if (model_type == "VAE" or model_type == "AE"or model_type == "MeiNN"):
-        #encoding_dim = 400
-        latent_dim =HIDDEN_DIMENSION
+    # ae=None
+    autoencoder = None
+    fcn = None
+    if (model_type == "VAE" or model_type == "AE" or model_type == "MeiNN"):
+        # encoding_dim = 400
+        latent_dim = HIDDEN_DIMENSION
         if toTrainMeiNN:
-            myMeiNN=MeiNN(config,path,date,code, gene_data_train.T, y_train.T, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=AE_epoch_from_main,NN_epoch_from_main=NN_epoch_from_main,model_dir='./results/models')
-            #myMeiNN.build()
+            my_gene_to_residue_info = gene_to_residue_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
+                                                           count_connection)
+            myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
+                            HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
+                            NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',gene_to_residue_info=my_gene_to_residue_info)
+            # myMeiNN.build()
             myMeiNN.compile()
-            #myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
+            # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
             myMeiNN.fit()
+            print("***************************")
+            print("len residuals_name%d"% len(residuals_name))
+
             '''
             decoder_regularizer='var_l1'
             decoder_regularizer_initial=0.0001
@@ -529,16 +581,16 @@ def run(path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN
             print(15 * '-')
 
         if count == 1:
-            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
                 pickle.dump((gene, model), f)
         else:
-            with open(path+date+"_"+code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
     return myMeiNN
 
 
-def train_VAE(model,train_db,optimizer=tf.keras.optimizers.Adam(0.001),n_input=80):
+def train_VAE(model, train_db, optimizer=tf.keras.optimizers.Adam(0.001), n_input=80):
     for epoch in range(1000):
         for step, x in enumerate(train_db):
             x = tf.reshape(x, [-1, n_input])

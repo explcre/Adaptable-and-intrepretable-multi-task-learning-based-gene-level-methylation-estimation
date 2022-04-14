@@ -64,11 +64,12 @@ def _sampling_function(args):
 
 
 class gene_to_residue_info:
-    def __init__(self, gene_to_id_map, residue_to_id_map, gene_to_residue_map, count_connection):
+    def __init__(self, gene_to_id_map, residue_to_id_map, gene_to_residue_map, count_connection,gene_to_residue_map_reversed):
         self.gene_to_id_map = gene_to_id_map
         self.residue_to_id_map = residue_to_id_map
         self.gene_to_residue_map = gene_to_residue_map
         self.count_connection = count_connection
+        self.gene_to_residue_map_reversed=gene_to_residue_map_reversed
 
 class MeiNN:
     """Main class for the MeiNN architecture.
@@ -139,6 +140,7 @@ class MeiNN:
 
         #######################################################################
         #--2022-3-28 Pengcheng Xu
+
 
         latent_dim = self.HIDDEN_DIMENSION
         decoder_regularizer = 'var_l1'
@@ -428,9 +430,14 @@ class MeiNN:
             weight=self.fcn.get_weights()
             for i in range(len(weight)):
                 print("weight[%d]*******************************************"%i)
-                print(weight[i])
+                #print(weight[i])
                 print(weight[i].shape)
-            return losses.binary_crossentropy(y_true,y_pred)+np.sum(weight[0])#+1000*np.random.uniform(1)
+            print("self.gene_to_residue_info.gene_to_residue_map.shape")
+            print(len(self.gene_to_residue_info.gene_to_residue_map))
+            print(len(self.gene_to_residue_info.gene_to_residue_map[0]))
+            rate=2.0
+            regular=rate*weight[17]*self.gene_to_residue_info.gene_to_residue_map_reversed
+            return losses.binary_crossentropy(y_true,y_pred)+np.sum(regular)#+1000*np.random.uniform(1)
 
         optimizer = self.config['OPTIMIZER']
         self.autoencoder.compile(optimizer=optimizer, loss='binary_crossentropy')

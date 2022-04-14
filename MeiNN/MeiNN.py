@@ -436,7 +436,7 @@ class MeiNN:
             print(len(self.gene_to_residue_info.gene_to_residue_map))
             print(len(self.gene_to_residue_info.gene_to_residue_map[0]))
             rate=2.0
-            regular=rate*weight[17]*self.gene_to_residue_info.gene_to_residue_map_reversed
+            regular=abs(rate*weight[17]*self.gene_to_residue_info.gene_to_residue_map_reversed)
             return losses.binary_crossentropy(y_true,y_pred)+np.sum(regular)#+1000*np.random.uniform(1)
 
         optimizer = self.config['OPTIMIZER']

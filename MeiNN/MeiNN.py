@@ -410,10 +410,18 @@ class MeiNN:
             self.resvae_model = multi_gpu_model(model=self.fcn, gpus=self.config['MULTI_GPU'])
 
         '''
+        def myLoss(y_true,y_pred):
+            weight=self.fcn.get_weights()
+            for i in range(len(weight)):
+                print("weight[%d]*******************************************"%i)
+                print(weight[i])
+                print(weight[i].shape)
+            return losses.binary_crossentropy(y_true,y_pred)+np.sum(weight[0])#+1000*np.random.uniform(1)
+
         optimizer = self.config['OPTIMIZER']
         self.autoencoder.compile(optimizer=optimizer, loss='binary_crossentropy')
-        self.fcn.compile(optimizer=optimizer, loss=[losses.binary_crossentropy,
-                                                losses.binary_crossentropy])#experimental_run_tf_function=False
+        self.fcn.compile(optimizer=optimizer, loss=[myLoss,losses.binary_crossentropy
+                                                ])#experimental_run_tf_function=False
         #self.fcn.compile(optimizer=optimizer, loss=[losses.binary_crossentropy(y_true=self.x_train,
         #                                                  y_pred=self.autoencoder.get_layer('ae_output').output),losses.binary_crossentropy(y_true=self.y_train,y_pred=self.output[0])])#experimental_run_tf_function=False
         #self.fcn.compile(optimizer=optimizer, loss=self.reconstruct_and_predict_loss)
@@ -426,7 +434,7 @@ class MeiNN:
         :param exprs: Input matrix (samples x features)
         :param classes: One-hot encoded or partial class identity matrix (samples x classes)
         :param model_dir: Directory to save training logs in
-        :param model_name: Name of the model (for log files
+        :param model_name: Na0me of the model (for log files
         :return: Returns a keras history object and a dictionary with scores
         """
 

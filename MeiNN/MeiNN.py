@@ -63,12 +63,19 @@ def _sampling_function(args):
     return (z_mean + K.exp(0.5 * z_log_var) * epsilon) * mask
 
 
+class gene_to_residue_info:
+    def __init__(self, gene_to_id_map, residue_to_id_map, gene_to_residue_map, count_connection):
+        self.gene_to_id_map = gene_to_id_map
+        self.residue_to_id_map = residue_to_id_map
+        self.gene_to_residue_map = gene_to_residue_map
+        self.count_connection = count_connection
+
 class MeiNN:
     """Main class for the MeiNN architecture.
 
     """
 
-    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt"):
+    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt",gene_to_site_dir=r"./platform.json",gene_to_residue_info=None):
         """
 
         :param model_dir: Directory to save training weights and log files
@@ -95,6 +102,8 @@ class MeiNN:
         self.model_type = model_type
         self.data_type = data_type
         self.HIDDEN_DIMENSION=HIDDEN_DIMENSION
+        self.gene_to_site_dir=gene_to_site_dir
+        self.gene_to_residue_info=gene_to_residue_info
         self.autoencoder, self.encoder,self.fcn = self.build()
 
 
@@ -141,13 +150,18 @@ class MeiNN:
         decoder_bn = False
         decoder_bias = 'last'
         last_activ = 'tanh'  # 'softmax'
-        in_dim = int(809)
+        gene_layer_dim = len(self.gene_to_residue_info.gene_to_id_map)
+        residue_layer_dim = len(self.gene_to_residue_info.residue_to_id_map)
+
+        in_dim = residue_layer_dim#int(809)#modified 2022-4-14
         # Compress the dimension to latent_dim
         mid_dim = int(math.sqrt(in_dim * latent_dim))
         q3_dim = int(math.sqrt(in_dim * mid_dim))
         q1_dim = int(math.sqrt(latent_dim * mid_dim))
-        decoder_shape = [latent_dim, q1_dim, mid_dim, q3_dim]
-        input_shape = (809)
+        #decoder_shape = [latent_dim, q1_dim, mid_dim, q3_dim]
+        encoder_shape = [gene_layer_dim,residue_layer_dim,latent_dim]
+        decoder_shape = [latent_dim, gene_layer_dim] #modified on 2022-4-14 #, residue_layer_dim]
+        input_shape = (residue_layer_dim)
 
         if decoder_regularizer == 'dot_weights':
             dot_weights = np.zeros(shape=(latent_scale * latent_dim, latent_scale * latent_dim))
@@ -493,6 +507,17 @@ class MeiNN:
         print(embedding)
         print(embedding.shape)
 
+
+        print("****************InMeiNN*****************************************")
+        print("count_gene=%d" % len(self.gene_to_residue_info.gene_to_id_map))
+        print("gene_to_id_map:")
+        print(self.gene_to_residue_info.gene_to_id_map)
+        print("count_residue=%d" % len(self.gene_to_residue_info.residue_to_id_map))
+        print("residue_to_id_map:")
+        print(self.gene_to_residue_info.residue_to_id_map)
+        # print("gene_to_residue_map:")
+        # print(gene_to_residue_map)
+        print("count_connection=%d" % self.gene_to_residue_info.count_connection)
         #return history, scores
         return
 

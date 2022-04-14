@@ -160,13 +160,15 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_to_id_map)" + ".txt",
         residue_to_id_map)
 
-    gene_to_residue_map = [[0 for i in range(len(residue_to_id_map)+1)]for i in range(len(gene_to_id_map)+1)]
+    gene_to_residue_map = [[0 for i in range(len(residue_to_id_map))]for i in range(len(gene_to_id_map))]
+    gene_to_residue_map_reversed = [[1 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
     count_connection=0
     for id in gene_to_id_map:
         if(id in gene_dict):
             for residue in gene_dict[id]:
                 if residue in residue_to_id_map:
                     gene_to_residue_map[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 1
+                    gene_to_residue_map_reversed[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 0
                     count_connection+=1
 
     np.save(
@@ -184,7 +186,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         latent_dim = HIDDEN_DIMENSION
         if toTrainMeiNN:
             my_gene_to_residue_info = gene_to_residue_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
-                                                           count_connection)
+                                                           count_connection,gene_to_residue_map_reversed)
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                             NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',gene_to_residue_info=my_gene_to_residue_info)

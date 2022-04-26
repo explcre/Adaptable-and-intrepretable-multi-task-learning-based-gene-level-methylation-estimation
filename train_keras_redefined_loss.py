@@ -34,6 +34,7 @@ from torch.autograd import Variable
 import math
 import warnings
 import AutoEncoder as AE
+
 from time import time
 
 # import tensorflow.keras as keras
@@ -73,11 +74,23 @@ def cube_data(data):
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        AE_epoch_from_main=1000, NN_epoch_from_main=1000):
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
+        gene_name_dir="./dataset/GO term pathway/genes.txt"):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
                   'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor, 'VAE': VAE.VAE, 'AE': AE.Autoencoder}
+
+
+    # the following added 22-4-24 for go term pathway
+    csv_data = pd.read_csv(gene_pathway_dir, low_memory=False)  # 防止弹出警告
+    pathway_name_data=pd.read_csv(pathway_name_dir, low_memory=False)
+    gene_name_data = pd.read_csv(gene_name_dir, low_memory=False)
+
+    gene_pathway_df = pd.DataFrame(csv_data)
+    gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
+    print(gene_pathway_df.head(10))
+    # above added 22-4-24 for go term pathway
 
     with open(platform, 'r') as f:
         gene_dict = json.load(f)

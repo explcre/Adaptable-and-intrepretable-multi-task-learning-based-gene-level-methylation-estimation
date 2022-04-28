@@ -84,10 +84,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
     # the following added 22-4-24 for go term pathway
     csv_data = pd.read_csv(gene_pathway_dir)  # 防止弹出警告
-    pathway_name_data=pd.read_csv(pathway_name_dir)
-    pathway_name_data_df=pathway_name_data.values.tolist()
-    gene_name_data = pd.read_csv(gene_name_dir)
-    gene_name_data_df = gene_name_data.values.tolist()
+    #pathway_name_data=pd.read_csv(pathway_name_dir)
+    #pathway_name_data_df=pathway_name_data.values.tolist()
+    #gene_name_data = pd.read_csv(gene_name_dir)
+    #gene_name_data_df = gene_name_data.values.tolist()
     gene_pathway_df = pd.DataFrame(csv_data)#,columns=gene_name_data_df, index=pathway_name_data_df)
 
     #gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)

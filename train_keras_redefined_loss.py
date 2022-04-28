@@ -20,7 +20,7 @@ from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 # import TabularAutoEncoder
-import VAE
+#import VAE
 # import tensorflow.compat.v1 as tf
 # tf.disable_v2_behavior()
 import tensorflow as tf
@@ -74,22 +74,24 @@ def cube_data(data):
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        AE_epoch_from_main=1000, NN_epoch_from_main=1000,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000,gene_pathway_dir="./dataset/GO term pathway/matrix.txt",pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
-                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor, 'AE': AE.Autoencoder}
+                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'AE': AE.Autoencoder}
 
 
     # the following added 22-4-24 for go term pathway
-    csv_data = pd.read_csv(gene_pathway_dir, low_memory=False)  # 防止弹出警告
-    pathway_name_data=pd.read_csv(pathway_name_dir, low_memory=False)
-    gene_name_data = pd.read_csv(gene_name_dir, low_memory=False)
+    csv_data = pd.read_csv(gene_pathway_dir)  # 防止弹出警告
+    pathway_name_data=pd.read_csv(pathway_name_dir)
+    pathway_name_data_df=pathway_name_data.values.tolist()
+    gene_name_data = pd.read_csv(gene_name_dir)
+    gene_name_data_df = gene_name_data.values.tolist()
+    gene_pathway_df = pd.DataFrame(csv_data)#,columns=gene_name_data_df, index=pathway_name_data_df)
 
-    gene_pathway_df = pd.DataFrame(csv_data)
-    gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
-    print(gene_pathway_df.head(10))
+    #gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
+    #print(gene_pathway_df.head(10))
     # above added 22-4-24 for go term pathway
 
     with open(platform, 'r') as f:
@@ -168,6 +170,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 pickle.dump((gene, model), f)
         print('finish!')
     # save the dictionary : following added 22-4-14
+
     np.save(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)"+".txt", gene_to_id_map)
     np.save(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_to_id_map)" + ".txt",
@@ -210,6 +213,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             print("***************************")
             print("len residuals_name%d"% len(residuals_name))
 
+            print("****gene_pathway_df***********************")
+            print(gene_pathway_df.head(20))
             '''
             decoder_regularizer='var_l1'
             decoder_regularizer_initial=0.0001

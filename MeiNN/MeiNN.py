@@ -318,8 +318,11 @@ class MeiNN:
         # embedding=ae.code(torch.tensor(gene_data_train.T).float())
         embedding = self.input_to_encoding_model.predict(self.x_train)
         embedding_df = pd.DataFrame(embedding)
+        #self.path="./result/"
+        #"C:/Users/xupengch/Downloads/methylation/2020Fall-Adaptable-and-intrepretable-multi-task-learning-based-gene-level-methylation-estimation-main"
+        #+self.path +
         embedding_df.to_csv(
-            self.path + self.date + "_" + self.code + "_gene_level" + "(" + self.data_type + '_' + self.model_type + "_embedding_original).txt",
+             self.path + self.date + "_" + self.code + "_gene_level" + "(" + self.data_type + '_' + self.model_type + "_embedding_original).txt",
             sep='\t')
 
         print("embedding is ")

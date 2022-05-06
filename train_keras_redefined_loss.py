@@ -4,7 +4,7 @@ import re
 # import resVAE.utils as cutils
 # from resVAE.config import config
 # import resVAE.reporting as report
-from MeiNN.MeiNN import MeiNN,gene_to_residue_info
+from MeiNN.MeiNN import MeiNN, gene_to_residue_info
 from MeiNN.config import config
 import os
 import json
@@ -20,7 +20,7 @@ from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 # import TabularAutoEncoder
-#import VAE
+# import VAE
 # import tensorflow.compat.v1 as tf
 # tf.disable_v2_behavior()
 import tensorflow as tf
@@ -74,25 +74,28 @@ def cube_data(data):
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        AE_epoch_from_main=1000, NN_epoch_from_main=1000,gene_pathway_dir="./dataset/GO term pathway/matrix.txt",pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
+        toAddGenePathway=False,
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.txt",
+        pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
-                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'AE': AE.Autoencoder}
+                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor, 'AE': AE.Autoencoder}
 
+    if toAddGenePathway:
+        # the following added 22-4-24 for go term pathway
+        gene_pathway_csv_data = pd.read_csv(gene_pathway_dir, header=None, dtype='int')  # 防止弹出警告
+        pathway_name_data = pd.read_csv(pathway_name_dir, header=0, dtype='str')
+        # pathway_name_data_df=pathway_name_data.values.tolist()
+        gene_name_data = pd.read_csv(gene_name_dir, header=0, dtype='str', sep=',')
+        # gene_name_data_df = gene_name_data.values.tolist()
+        gene_pathway_df = pd.DataFrame(gene_pathway_csv_data)#, columns=gene_name_data, index=pathway_name_data)
 
-    # the following added 22-4-24 for go term pathway
-    csv_data = pd.read_csv(gene_pathway_dir)  # 防止弹出警告
-    #pathway_name_data=pd.read_csv(pathway_name_dir)
-    #pathway_name_data_df=pathway_name_data.values.tolist()
-    #gene_name_data = pd.read_csv(gene_name_dir)
-    #gene_name_data_df = gene_name_data.values.tolist()
-    gene_pathway_df = pd.DataFrame(csv_data)#,columns=gene_name_data_df, index=pathway_name_data_df)
-
-    #gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
-    #print(gene_pathway_df.head(10))
-    # above added 22-4-24 for go term pathway
+        # genename_to_genepathway_index_map=
+        # gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
+        # print(gene_pathway_df.head(10))
+        # above added 22-4-24 for go term pathway
 
     with open(platform, 'r') as f:
         gene_dict = json.load(f)
@@ -115,7 +118,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     count_residue = 0
     gene_to_id_map = {}
     residue_to_id_map = {}
-
+    gene_present_list = []
     mode_all_gene_and_residue = False
     for (i, gene) in enumerate(gene_dict):
         count += 1
@@ -128,14 +131,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             gene_to_id_map[gene] = count_gene
             count_gene += 1
             for residue in gene_dict[gene]:
-                #gene_to_residue_map[gene_to_id_map[gene]][residue_to_id_map[residue]] = 1  # added 22-4-14
+                # gene_to_residue_map[gene_to_id_map[gene]][residue_to_id_map[residue]] = 1  # added 22-4-14
                 residue_to_id_map[residue] = count_residue  # added 22-4-14
                 count_residue += 1  # added 22-4-14
         # above added 22-4-14
 
         for residue in data_train.index:
             if residue in gene_dict[gene]:
-                if (residue not in(residuals_name)): #added 2022-4-14
+                if (residue not in (residuals_name)):  # added 2022-4-14
                     residuals_name.append(residue)
                     gene_data_train.append(data_train.loc[residue])
                 # following added 22-4-14
@@ -143,11 +146,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     if gene not in gene_to_id_map:
                         gene_to_id_map[gene] = count_gene
                         count_gene += 1
-                        #gene_to_residue_map.append([])
+                        gene_present_list.append(gene)
+                        # gene_to_residue_map.append([])
                     if residue not in residue_to_id_map:
                         residue_to_id_map[residue] = count_residue  # added 22-4-14
                         count_residue += 1  # added 22-4-14
-                        #gene_to_residue_map.append(1)
+                        # gene_to_residue_map.append(1)
 
                 # above added 22-4-14
         if len(gene_data_train) == 0:
@@ -155,7 +159,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             continue
 
         # gene_data_train = np.array(gene_data_train)
-        gene_list.append(gene)
+        if gene not in gene_list:
+            gene_list.append(gene)
 
         print('No.' + str(i) + 'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
             int(count * 100 / num)) + '% ...')
@@ -169,23 +174,65 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
         print('finish!')
+
+    if toAddGenePathway:
+        gene_present_list_df = pd.DataFrame(gene_present_list, columns=['name'])
+        temp_list = list(range(len(gene_name_data)))
+        #for i, val in enumerate(temp_list):
+        #    temp_list[i] = str(val)
+        gene_present_index = gene_present_list_df.replace(gene_name_data.values.tolist(), temp_list)
+        # gene_present_index_sorted=gene_present_index.sort_values('name')
+        gene_present_index_list = gene_present_index.values.tolist()
+        print("**********gene_present_index_list********")
+        print(gene_present_index_list)
+        print(len(gene_present_index_list))
+        import re
+        #for i, val in enumerate(gene_present_index_list):
+            #gene_present_index_list[i] = str(val)
+        # re.search(re_exp)
+        re_exp = r"[^0-9\]\[]"
+        where_input_gene_is_not_in_go_term=[False]*len(gene_present_index_list)
+        for i, val in enumerate(gene_present_index_list):
+            where_input_gene_is_not_in_go_term [i] = re.match(re_exp, str(val))
+        #where_input_gene_is_not_in_go_term = list(filter(lambda x: re.match(re_exp, x) != None, gene_present_index_list))
+        # where_input_gene_is_not_in_go_term = gene_present_index_list.str.contains(re_exp)
+        print("**********where_input_gene_is_not_in_go_term********")
+        print(where_input_gene_is_not_in_go_term)
+        print(len(where_input_gene_is_not_in_go_term))
+        gene_name_data_list = gene_name_data.values.tolist()
+        print("**gene_name_data_list:**")
+        print(gene_name_data_list)
+        print(gene_name_data_list[0])
+        print("**gene_to_id_map:**")
+        print(gene_to_id_map)
+        #print(gene_to_id_map['ABCDEFG'])
+        print("**********in gene to id map but not in go term********")
+        count1=0
+        for gene in gene_present_list:
+            if str(gene) not in gene_name_data_list:
+                print(gene)
+                print(count1)
+                count1+=1
+        gene_pathway_present_gene_index = gene_pathway_csv_data.loc[:gene_present_index_list]
     # save the dictionary : following added 22-4-14
 
-    np.save(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)"+".txt", gene_to_id_map)
+    np.save(
+        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)" + ".txt",
+        gene_to_id_map)
     np.save(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_to_id_map)" + ".txt",
         residue_to_id_map)
 
-    gene_to_residue_map = [[0 for i in range(len(residue_to_id_map))]for i in range(len(gene_to_id_map))]
+    gene_to_residue_map = [[0 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
     gene_to_residue_map_reversed = [[1 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
-    count_connection=0
+    count_connection = 0
     for id in gene_to_id_map:
-        if(id in gene_dict):
+        if (id in gene_dict):
             for residue in gene_dict[id]:
                 if residue in residue_to_id_map:
                     gene_to_residue_map[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 1
                     gene_to_residue_map_reversed[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 0
-                    count_connection+=1
+                    count_connection += 1
 
     np.save(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_residue_map)" + ".txt",
@@ -202,19 +249,39 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         latent_dim = HIDDEN_DIMENSION
         if toTrainMeiNN:
             my_gene_to_residue_info = gene_to_residue_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
-                                                           count_connection,gene_to_residue_map_reversed)
+                                                           count_connection, gene_to_residue_map_reversed)
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
-                            NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',gene_to_residue_info=my_gene_to_residue_info)
+                            NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',
+                            gene_to_residue_info=my_gene_to_residue_info)
+
             # myMeiNN.build()
             myMeiNN.compile()
             # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
             myMeiNN.fit()
-            print("***************************")
-            print("len residuals_name%d"% len(residuals_name))
 
-            print("****gene_pathway_df***********************")
-            print(gene_pathway_df.head(20))
+            if toAddGenePathway:
+                print("***************************")
+                print("len residuals_name%d" % len(residuals_name))
+
+                print("****gene_pathway_df***********************")
+                print(gene_pathway_df)
+                print("****csv_data***********************")
+                print(gene_pathway_csv_data)
+                print("****gene_name_data***********************")
+                print(gene_name_data)
+                print(gene_name_data.iloc[1])
+                print("****gene_present_list_df***********************")
+                print(gene_present_list_df)
+                print("****gene_present_index***********************")
+                print(gene_present_index)
+                # print("****gene_present_index_sorted***********************")
+                # print(gene_present_index_sorted)
+                print("****gene_pathway_present_gene_index***********************")
+                print(gene_pathway_present_gene_index)
+
+                # pathway_name_data
+
             '''
             decoder_regularizer='var_l1'
             decoder_regularizer_initial=0.0001

@@ -90,7 +90,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         # pathway_name_data_df=pathway_name_data.values.tolist()
         gene_name_data = pd.read_csv(gene_name_dir, header=0, dtype='str', sep=',')
         # gene_name_data_df = gene_name_data.values.tolist()
-        gene_pathway_df = pd.DataFrame(gene_pathway_csv_data)#, columns=gene_name_data, index=pathway_name_data)
+        gene_pathway_df = pd.DataFrame(gene_pathway_csv_data)  # , columns=gene_name_data, index=pathway_name_data)
 
         # genename_to_genepathway_index_map=
         # gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
@@ -178,7 +178,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     if toAddGenePathway:
         gene_present_list_df = pd.DataFrame(gene_present_list, columns=['name'])
         temp_list = list(range(len(gene_name_data)))
-        #for i, val in enumerate(temp_list):
+        # for i, val in enumerate(temp_list):
         #    temp_list[i] = str(val)
         gene_present_index = gene_present_list_df.replace(gene_name_data.values.tolist(), temp_list)
         # gene_present_index_sorted=gene_present_index.sort_values('name')
@@ -187,14 +187,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         print(gene_present_index_list)
         print(len(gene_present_index_list))
         import re
-        #for i, val in enumerate(gene_present_index_list):
-            #gene_present_index_list[i] = str(val)
+        # for i, val in enumerate(gene_present_index_list):
+        # gene_present_index_list[i] = str(val)
         # re.search(re_exp)
         re_exp = r"[^0-9\]\[]"
-        where_input_gene_is_not_in_go_term=[False]*len(gene_present_index_list)
+        where_input_gene_is_not_in_go_term = [False] * len(gene_present_index_list)
         for i, val in enumerate(gene_present_index_list):
-            where_input_gene_is_not_in_go_term [i] = re.match(re_exp, str(val))
-        #where_input_gene_is_not_in_go_term = list(filter(lambda x: re.match(re_exp, x) != None, gene_present_index_list))
+            where_input_gene_is_not_in_go_term[i] = re.match(re_exp, str(val))
+        # where_input_gene_is_not_in_go_term = list(filter(lambda x: re.match(re_exp, x) != None, gene_present_index_list))
         # where_input_gene_is_not_in_go_term = gene_present_index_list.str.contains(re_exp)
         print("**********where_input_gene_is_not_in_go_term********")
         print(where_input_gene_is_not_in_go_term)
@@ -205,14 +205,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         print(gene_name_data_list[0])
         print("**gene_to_id_map:**")
         print(gene_to_id_map)
-        #print(gene_to_id_map['ABCDEFG'])
+        # print(gene_to_id_map['ABCDEFG'])
         print("**********in gene to id map but not in go term********")
-        count1=0
+        count1 = 0
         for gene in gene_present_list:
             if str(gene) not in gene_name_data_list:
                 print(gene)
                 print(count1)
-                count1+=1
+                count1 += 1
         gene_pathway_present_gene_index = gene_pathway_csv_data.loc[:gene_present_index_list]
     # save the dictionary : following added 22-4-14
 
@@ -244,10 +244,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     # ae=None
     autoencoder = None
     fcn = None
-    if (model_type == "VAE" or model_type == "AE" or model_type == "MeiNN"):
+    if True or (model_type == "VAE" or model_type == "AE" or model_type == "MeiNN"):
         # encoding_dim = 400
         latent_dim = HIDDEN_DIMENSION
-        if toTrainMeiNN:
+        print("INFO:we entered MeiNN code")
+        if True or toTrainMeiNN:
+            print("INFO:we entered to train MeiNN code")
             my_gene_to_residue_info = gene_to_residue_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
                                                            count_connection, gene_to_residue_map_reversed)
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
@@ -304,40 +306,32 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 for s in range(latent_dim):
                     dot_weights[s * latent_scale:s * latent_scale + latent_scale,
                     s * latent_scale:s * latent_scale + latent_scale] = 1
-
             # L1 regularizer with the scaling factor updateable through the l_rate variable (callback)
             def variable_l1(weight_matrix):
                 return l_rate * K.sum(K.abs(weight_matrix))
-
             # L2 regularizer with the scaling factor updateable through the l_rate variable (callback)
             def variable_l2(weight_matrix):
                 return l_rate * K.sum(K.square(weight_matrix))
-
             # Mixed L1 and L2 regularizer, updateable scaling. TODO: Consider implementing different scaling factors for L1 and L2 part
             def variable_l1_l2(weight_matrix):
                 return l_rate * (K.sum(K.abs(weight_matrix)) + K.sum(K.square(weight_matrix))) * 0.5
-
             # Dot product-based regularizer
             def dotprod_weights(weights_matrix):
                 penalty_dot = l_rate * K.mean(K.square(K.dot(weights_matrix,
                                                                   K.transpose(weights_matrix)) * dot_weights))
                 penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
                 return penalty_dot + penalty_l1
-
             def dotprod(weights_matrix):
                 penalty_dot = l_rate * K.mean(K.square(K.dot(weights_matrix, K.transpose(weights_matrix))))
                 penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
                 return penalty_dot + penalty_l1
-
             def dotprod_inverse(weights_matrix):
                 penalty_dot = 0.1 * K.mean(
                     K.square(K.dot(K.transpose(weights_matrix), weights_matrix) * dot_weights))
                 penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
                 return penalty_dot + penalty_l1
-
             def relu_advanced(x):
                 return K.relu(x, threshold=relu_thresh)
-
             if activ == 'relu':
                 activ = relu_advanced
             # assigns the regularizer to the scaling factor. TODO: Look for more elegant method
@@ -368,8 +362,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             else:
                 reg = None
                 reg1 = None
-
-
             # this is our input placeholder
             input = Input(shape=(in_dim,))
             # 编码层
@@ -377,7 +369,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             encoded = Dense(mid_dim, activation='relu')(encoded)
             encoded = Dense(q1_dim, activation='relu')(encoded)
             encoder_output = Dense( latent_dim,name="input_to_encoding")(encoded)
-
             decoded = layers.Dense(q1_dim,
                              activation=activ,
                              name='Decoder1',
@@ -401,7 +392,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                          kernel_regularizer=reg)(decoded)
                     if decoder_bn:
                         decoded = layers.BatchNormalization()(decoded)
-
             if decoder_bias == 'none':
                 ae_outputs = layers.Dense(input_shape,
                                               activation=last_activ,
@@ -414,20 +404,15 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             #decoded = Dense(mid_dim, activation='relu')(decoded)
             #decoded = Dense(q3_dim, activation='relu')(decoded)
             #decoded = Dense(in_dim, activation='tanh')(decoded)
-
             # 构建自编码模型
             autoencoder = Model(inputs=input, outputs=ae_outputs)
-
             # 构建编码模型
             encoder = Model(inputs=input, outputs=encoder_output)
-
             # compile autoencoder
             autoencoder.compile(optimizer='adam', loss='binary_crossentropy') #loss='mse'
-
             class CustomAutoencoder(layers.Layer):
                 def __init__(self):
                     super(CustomAutoencoder, self).__init__()
-
                     # this is our input placeholder
                     input = Input(shape=(in_dim,))
                     # 编码层
@@ -435,7 +420,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     encoded = Dense(mid_dim, activation='relu')(encoded)
                     encoded = Dense(q1_dim, activation='relu')(encoded)
                     encoder_output = Dense(latent_dim, name="input_to_encoding")(encoded)
-
                     decoded = layers.Dense(q1_dim,
                                            activation=activ,
                                            name='Decoder1',
@@ -459,7 +443,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                                        kernel_regularizer=reg)(decoded)
                             if decoder_bn:
                                 decoded = layers.BatchNormalization()(decoded)
-
                     if decoder_bias == 'none':
                         self.ae_outputs = layers.Dense(input_shape,
                                                   activation=last_activ,
@@ -470,16 +453,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     self.autoencoder = Model(inputs=input, outputs=ae_outputs)
                     # 构建编码模型
                     self.encoder = Model(inputs=input, outputs=encoder_output)
-
-
                 def call(self, inputs,option='ae_output'):
                     if(option=='ae_output'):
                         return self.autoencoder(input)
                     elif(option=='embedding'):
                         return self.encoder(input)
-
-
-
             # training
             '''
 
@@ -488,18 +466,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             print("AE finish_fitting")
             MeiNN.autoencoder.save(date+'AE.h5')
             print("AE finish saving model")
-            
-            
-
 
 
             ################################################################
             #the following is the embedding to y prediction
-
             #ae=torch.load(date+'_auto-encoder.pth')
-
             #loaded_autoencoder = load_model(date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-
             input_to_encoding_model = Model(inputs=autoencoder.input,
                                        outputs=autoencoder.get_layer('input_to_encoding').output)
             print("input_to_encoding_model.predict(gene_data_train.T)")
@@ -508,30 +480,23 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             embedding = input_to_encoding_model.predict(gene_data_train.T)
             embedding_df = pd.DataFrame(embedding)
             embedding_df.to_csv(path+date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + "_embedding_original).txt", sep='\t')
-
             print("embedding is ")
             print(embedding)
             print(embedding.shape)
-
             in_dim =  latent_dim
             # output dimension is 1
             out_dim = 1
-
             mid_dim = math.sqrt(in_dim *  latent_dim)
             q3_dim = math.sqrt(in_dim * mid_dim)
 
-
-            
             q1_dim = math.sqrt( latent_dim * mid_dim)
             # this is our input placeholder
-
             #input = Input(shape=(in_dim,))
             # 编码层
             out_x = Dense(q3_dim, activation='relu')(encoder_output)
             out_x = Dense(mid_dim, activation='relu')(out_x)
             out_x = Dense(q1_dim, activation='relu')(out_x)
             output = Dense(out_dim,activation='sigmoid',name="prediction")(out_x)#originally sigmoid
-
             def reconstruct_and_predict_loss(x,ae_outputs,output,y_train,y_index):
                 reconstruct_loss = losses.binary_crossentropy(x, ae_outputs)
                 print(output[0])
@@ -541,8 +506,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 print(y_train.T.shape)
                 predict_loss =losses.binary_crossentropy(y_pred=output,y_true=y_train.T[y_index]) #- 0.5 * K.mean(1 + z_log_sigma - K.square(z_mean) - K.exp(z_log_sigma), axis=-1)
                 return reconstruct_loss + predict_loss
-
-
             def my_reconstruct_and_predict_loss(y_true, y_pred, lam=0.5):
                 reconstruct_loss = losses.binary_crossentropy(y_true=autoencoder.input, y_pred=autoencoder.get_layer('ae_output').output)
                 predict_loss = losses.binary_crossentropy(y_true,
@@ -554,18 +517,15 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             fcn.compile(optimizer='adam', loss= my_reconstruct_and_predict_loss,experimental_run_tf_function=False)  # loss='mse'#'binary_crossentropy'
             # training
             #fcn.fit(embedding, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
-
             fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
             print("FCN finish_fitting")
             fcn.save(path+date + 'FCN.h5')
             print("FCN finish saving model")
-
             embedding = input_to_encoding_model.predict(gene_data_train.T)  # input_to_encoding_model.predict(gene_data_train.T)
             embedding_df = pd.DataFrame(embedding)
             embedding_df.to_csv(
                 path+date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_embedding_trained).txt",
                 sep='\t')
-
             print("embedding is ")
             print(embedding)
             print(embedding.shape)
@@ -576,7 +536,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             hidden_size = 10
             dataset = gene_data_train.T  # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
             # dataset = gene_data_train  # dsets.MNIST(root='../data',
-
             # train=True,
             # transform=transforms.ToTensor(),
             # download=True)
@@ -591,26 +550,21 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             fcn=AE.NN(in_dim=HIDDEN_DIMENSION, h_dim=1)
             if torch.cuda.is_available():
                 fcn.cuda()
-
             criterion = nn.BCELoss()
             optimizer = torch.optim.Adam(fcn.parameters(), lr=0.001)
             iter_per_epoch = len(data_loader)
             data_iter = iter(data_loader)
-
             # save fixed inputs for debugging
             fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
             mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
-
             myfile = '%snn_real_image_%s_batch%d.png' % (date,code, i + 1)
             images_path = os.path.join(mydir, myfile)
             torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
             fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
             NN_loss_list=[]
             for epoch in range(num_epochs):
-
                 t0 = time()
                 for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
-
                     # flatten the image
                     images = AE.to_var(images.view(images.size(0), -1))
                     images = images.float()
@@ -619,10 +573,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     out = fcn(embedding_)
                     #print("out at tain.py nn ")
                     #print(out)
-
                     #print("torch.tensor(y_train).float() at tain.py nn ")
                     #print(torch.tensor(y_train).float())
-
                     out=torch.reshape(out, (-1,))
                     loss = criterion(out, torch.tensor(y_train).float().T)
                     optimizer.zero_grad()
@@ -631,7 +583,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     print("training nn, epoch %d : loss= "% epoch)
                     print(loss.item())
                     NN_loss_list.append(loss.item())
-
                     if (i + 1) % 100 == 0:
                         print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
                               % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
@@ -639,7 +590,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         print("out after reshape")
                         print(out.shape)
                         print(out)
-
                 if (epoch + 1) % 1 == 0:
                     fixed_x = fixed_x.float()
                     embedding_out = ae.code(torch.tensor(fixed_x).float())

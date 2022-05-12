@@ -124,18 +124,23 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     data_train_df=pd.DataFrame(data_train)
     print("data_train_df=")
     print(data_train_df)
-    data_label_df0=pd.DataFrame(y_train,columns=['label'],index=data_train_df.columns)
+    print("y_train")
+    print(y_train)
+    if code=="GSE66695":
+        data_label_df0=pd.DataFrame(y_train,columns=['Ground Truth'],index=data_train_df.columns)
+    else:
+        data_label_df0 = pd.DataFrame(y_train,columns=['Ground Truth'])
     data_label_df=data_label_df0.T
     print("data_label_df=")
     print(data_label_df)
-    data_train_label_df=pd.concat([data_train_df, data_label_df], axis=0)
+    data_train_label_df=data_train_df.append(data_label_df)#pd.concat([data_train_df, data_label_df], axis=0)
     print("after join data and label")
     print(data_train_label_df)
     from scipy import stats
     data_train_label_df_T=data_train_label_df.T
-    print("data_train_label_df_T[data_train_label_df_T['label']==1.0]")
-    print(data_train_label_df_T[data_train_label_df_T['label']==1.0])
-    t_test_result=stats.ttest_ind(data_train_label_df_T[data_train_label_df_T['label']==1.0], data_train_label_df_T[data_train_label_df_T['label']==0.0])
+    print("data_train_label_df_T[data_train_label_df_T['Ground Truth']==1.0]")
+    print(data_train_label_df_T[data_train_label_df_T['Ground Truth']==1.0])
+    t_test_result=stats.ttest_ind(data_train_label_df_T[data_train_label_df_T['Ground Truth']==1.0], data_train_label_df_T[data_train_label_df_T['Ground Truth']==0.0])
     print("t_testresult=")
     print(t_test_result)
     print("t_testresult.pvalue=")
@@ -263,7 +268,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     # save the dictionary : following added 22-4-14
 
 
-
+    np.save(
+        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_name_list)" + ".txt",
+        residuals_name)#added 5-12
     np.save(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)" + ".txt",
         gene_to_id_map)

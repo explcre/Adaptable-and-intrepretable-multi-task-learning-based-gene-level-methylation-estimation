@@ -56,6 +56,22 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
     data_test = data_dict[data_type](X_test)
     print("data_test")
     print(data_test)
+    '''
+    first_col=data_test.index
+    #data_test_filtered=pd.DataFrame(data_test[])
+    first_time_add_pd=True
+    for i in first_col:
+        if i in residue_name_list:
+            if first_time_add_pd:
+                first_time_add_pd=False
+                data_test_filtered = pd.DataFrame(data_test.loc[i])
+            else:
+                data_test_filtered[i]=data_test.loc[i]
+    #data_test=data_test[first_col in residue_name_list]
+    print("data_test after selecting residue")
+    print(data_test_filtered)
+    data_test=data_test_filtered
+    '''
     if False:
         data_test_pred=None
 
@@ -99,11 +115,18 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             while True:
                 try:
                     count += 1
+                    print("count=%d"% count)
                     temp = pickle.load(f)
                     gene = temp[0]
                     if(model_type!='AE'):
                         gene_data_test = []
-                    for residue in data_test.index:
+                    print_flag=False
+                    for iii,residue in enumerate(data_test.index):
+                        percentage=int(float(iii)/len(data_test.index)*100)
+                        if percentage % 50 ==0 and print_flag==False:
+                            print_flag=True
+                            print("now in data test index %d ,%f percent"%(iii,percentage))
+
                         if residue in gene_dict[gene] and (residue in residue_name_list) and residue_is_added[residue]==False:
                             #residue_name_list.append(residue)
                             residue_is_added[residue]=True

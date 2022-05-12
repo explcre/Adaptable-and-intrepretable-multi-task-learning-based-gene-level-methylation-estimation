@@ -39,7 +39,7 @@ def cube_data(data):
     return data ** 3
 
 
-def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type):
+def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type,residue_name_list=[]):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression, 'L1': Lasso,
@@ -90,7 +90,10 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
         print('finish!')
 
     gene_data_test = []
-    residue_name_list=[]
+    residue_is_added={}
+    for i in residue_name_list:
+        residue_is_added[i]=False
+    #residue_name_list=[]
     if True:
         with open(path+pickle_file, 'rb') as f:
             while True:
@@ -101,8 +104,9 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                     if(model_type!='AE'):
                         gene_data_test = []
                     for residue in data_test.index:
-                        if residue in gene_dict[gene] and (residue not in residue_name_list):
-                            residue_name_list.append(residue)
+                        if residue in gene_dict[gene] and (residue in residue_name_list) and residue_is_added[residue]==False:
+                            #residue_name_list.append(residue)
+                            residue_is_added[residue]=True
                             gene_data_test.append(data_test.loc[residue])
                     if (model_type != 'AE'):
                         gene_data_test = np.array(gene_data_test)

@@ -10,7 +10,7 @@ from predict_keras_redefined_loss import predict
 import torch
 torch.set_printoptions(profile="full")
 #from torchsummary import summary
-code = "diabetes1"#"GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
+code = "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 platform = "platform.json"
 model_type = "AE"#"RandomForest"
 predict_model_type="L2"
@@ -21,6 +21,8 @@ toTrainAE=True
 toTrainNN=True
 isPredict=True
 toTrainMeiNN=True
+toAddGeneSite=False
+num_of_selected_residue=800
 model=None
 AE_epoch=1000
 NN_epoch=1000
@@ -28,20 +30,22 @@ ae=None
 fcn=None
 myMeiNN=None
 h_dim=30
-date = '5-7-kerasAE-reg-myloss-explainable-h_dim%d-epoch%d'%(h_dim,AE_epoch)
+
+date = '5-12-kerasAE-reg-myloss-explainable-h_dim%d-epoch%d-geneSite=%s-selected%d'%(h_dim,AE_epoch,toAddGeneSite,num_of_selected_residue)
 keras = True
 path = r"./result/"
-isSelfCollectedDataset = False
+
+
 filename_dict={'small':"./dataset/data_train.txt"}
 if not code == "GSE66695":
+    isSelfCollectedDataset = True
     train_dataset_filename=r"./dataset/"+code+"/beta_value.csv"#"./dataset/data_train.txt"#"./dataset/diabetes1/beta_value.csv"#"./dataset/data_train.txt"# GSE66695_series_matrix.txt"#r"./dataset/data_train.txt"#GSE42861_processed_methylation_matrix.txt
-
     train_label_filename= r"./dataset/"+code+"/label.csv"#"./dataset/label_train.txt"#"./dataset/diabetes1/label.csv"#"./dataset/label_train.txt"
     test_dataset_filename= r"./dataset/"+code+"/beta_value.csv"#"./dataset/data_test.txt"#"./dataset/diabetes1/beta_value.csv"#"./dataset/data_test.txt"
     test_label_filename= r"./dataset/"+code+"/label.csv"#"./dataset/label_test.txt"#"./dataset/diabetes1/label.csv"#"./dataset/label_test.txt"
 else:
+    isSelfCollectedDataset = False
     train_dataset_filename = r"./dataset/data_train.txt"#"./dataset/diabetes1/beta_value.csv"#"./dataset/data_train.txt"# GSE66695_series_matrix.txt"#r"./dataset/data_train.txt"#GSE42861_processed_methylation_matrix.txt
-
     train_label_filename = r"./dataset/label_train.txt"#"./dataset/diabetes1/label.csv"#"./dataset/label_train.txt"
     test_dataset_filename = r"./dataset/data_test.txt"#"./dataset/diabetes1/beta_value.csv"#"./dataset/data_test.txt"
     test_label_filename = r"./dataset/label_test.txt" #
@@ -99,9 +103,8 @@ if isTrain:
 
     if(not just_check_data):
         if keras and toTrainMeiNN == True:
-            myMeiNN = run(path, date, code, train_data, train_label, platform, model_type, data_type, h_dim,
-
-                          toTrainMeiNN=toTrainMeiNN, toAddGenePathway=toAddGenePathway,AE_epoch_from_main=AE_epoch,NN_epoch_from_main=NN_epoch)
+            myMeiNN,residue_name_list = run(path, date, code, train_data, train_label, platform, model_type, data_type, h_dim,
+                          toTrainMeiNN=toTrainMeiNN, toAddGenePathway=toAddGenePathway,toAddGeneSite=toAddGeneSite,num_of_selected_residue=num_of_selected_residue,AE_epoch_from_main=AE_epoch,NN_epoch_from_main=NN_epoch)
             myMeiNN.fcn.summary()
             myMeiNN.autoencoder.summary()
         elif(toTrainMeiNN==False):
@@ -121,7 +124,7 @@ if keras:
 if isPredict and (not just_check_data):
     test_data = pd.read_table(test_dataset_filename, index_col=0)
     test_label = pd.read_table(test_label_filename, index_col=0)
-    predict(path,date,code, test_data, test_label,platform, date+"_"+code +"_"+model_type+"_"+data_type+dataset_type+"_model.pickle", model_type, data_type,model,predict_model_type)
+    predict(path,date,code, test_data, test_label,platform, date+"_"+code +"_"+model_type+"_"+data_type+dataset_type+"_model.pickle", model_type, data_type,model,predict_model_type,residue_name_list)
 
 
 '''

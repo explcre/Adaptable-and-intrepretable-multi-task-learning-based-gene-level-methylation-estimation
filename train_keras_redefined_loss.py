@@ -74,7 +74,7 @@ def cube_data(data):
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        toAddGenePathway=False,
+        toAddGenePathway=False,toAddGeneSite=False,num_of_selected_residue=1000,
         AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.txt",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
@@ -120,9 +120,53 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     residue_to_id_map = {}
     gene_present_list = []
     mode_all_gene_and_residue = False
+
+    data_train_df=pd.DataFrame(data_train)
+    print("data_train_df=")
+    print(data_train_df)
+    data_label_df0=pd.DataFrame(y_train,columns=['label'],index=data_train_df.columns)
+    data_label_df=data_label_df0.T
+    print("data_label_df=")
+    print(data_label_df)
+    data_train_label_df=pd.concat([data_train_df, data_label_df], axis=0)
+    print("after join data and label")
+    print(data_train_label_df)
+    from scipy import stats
+    data_train_label_df_T=data_train_label_df.T
+    print("data_train_label_df_T[data_train_label_df_T['label']==1.0]")
+    print(data_train_label_df_T[data_train_label_df_T['label']==1.0])
+    t_test_result=stats.ttest_ind(data_train_label_df_T[data_train_label_df_T['label']==1.0], data_train_label_df_T[data_train_label_df_T['label']==0.0])
+    print("t_testresult=")
+    print(t_test_result)
+    print("t_testresult.pvalue=")
+    print(t_test_result.pvalue)
+    print("t_testresult.pvalue.shape=")
+    print(t_test_result.pvalue.shape)
+
+    data_train_label_df['pvalue']=t_test_result.pvalue
+    print("data_train_label_df added pvalue")
+    print(data_train_label_df)
+    print("t_testresult.pvalue.sort()=")
+    print(np.sort(t_test_result.pvalue))
+    print("data_train_label_df.sort_values(by='pvalue',ascending=True)")
+    data_train_label_df_sorted_by_pvalue=data_train_label_df.sort_values(by='pvalue', ascending=True)
+    print(data_train_label_df_sorted_by_pvalue)
+    print("data_train_label_df_sorted_by_pvalue.iloc[1:,:-1])")
+    data_train_label_df_sorted_by_pvalue_raw=data_train_label_df_sorted_by_pvalue.iloc[1:, :-1]
+    print(data_train_label_df_sorted_by_pvalue_raw)
+
+    selected_residue_train_data=data_train_label_df_sorted_by_pvalue_raw.iloc[:num_of_selected_residue,:]
+    print("selected_residue_train_data)")
+    print(selected_residue_train_data)
+    data_train=selected_residue_train_data
+
+    #data_train_label_df.sort_values(by='pvalue',ascending=True)
+    #t_test_result.pvalue.sort()
+    toPrintInfo=False
     for (i, gene) in enumerate(gene_dict):
         count += 1
-        print("%s-th,gene=%s,gene_dict[gene]=%s" % (i, gene, gene_dict[gene]))
+        if toPrintInfo:
+            print("%s-th,gene=%s,gene_dict[gene]=%s" % (i, gene, gene_dict[gene]))
         # gene_data_train = []
         # residuals_name = []
 
@@ -162,8 +206,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         if gene not in gene_list:
             gene_list.append(gene)
 
-        print('No.' + str(i) + 'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
-            int(count * 100 / num)) + '% ...')
+        if toPrintInfo:
+            print('No.' + str(i) + 'Now training ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(
+                int(count * 100 / num)) + '% ...')
         # print("gene_data_train.shape[1]")
         # print(np.array(gene_data_train).shape[1])
 
@@ -173,7 +218,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         else:
             with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
-        print('finish!')
+        if toPrintInfo:
+            print('finish!')
 
     if toAddGenePathway:
         gene_present_list_df = pd.DataFrame(gene_present_list, columns=['name'])
@@ -216,6 +262,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         gene_pathway_present_gene_index = gene_pathway_csv_data.loc[:gene_present_index_list]
     # save the dictionary : following added 22-4-14
 
+
+
     np.save(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)" + ".txt",
         gene_to_id_map)
@@ -223,16 +271,19 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_to_id_map)" + ".txt",
         residue_to_id_map)
 
+    print("len residue_to_id_map%d"% len(residue_to_id_map))
+    print("len gene_to_id_map%d" % len(gene_to_id_map))
     gene_to_residue_map = [[0 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
     gene_to_residue_map_reversed = [[1 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
     count_connection = 0
-    for id in gene_to_id_map:
-        if (id in gene_dict):
-            for residue in gene_dict[id]:
-                if residue in residue_to_id_map:
-                    gene_to_residue_map[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 1
-                    gene_to_residue_map_reversed[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 0
-                    count_connection += 1
+    if toAddGeneSite:
+        for id in gene_to_id_map:
+            if (id in gene_dict):
+                for residue in gene_dict[id]:
+                    if residue in residue_to_id_map:
+                        gene_to_residue_map[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 1
+                        gene_to_residue_map_reversed[gene_to_id_map[str(id)]][residue_to_id_map[residue]] = 0
+                        count_connection += 1
 
     np.save(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_residue_map)" + ".txt",
@@ -241,6 +292,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     gene_data_train = np.array(gene_data_train)  # added line on 2-3
     print("gene_data_train=")
     print(gene_data_train)
+    np.save(
+        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_data_train)" + ".txt",
+        gene_data_train)
     # ae=None
     autoencoder = None
     fcn = None
@@ -250,12 +304,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         print("INFO:we entered MeiNN code")
         if True or toTrainMeiNN:
             print("INFO:we entered to train MeiNN code")
+            gene_data_train=np.load(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_data_train)" + ".txt.npy")
             my_gene_to_residue_info = gene_to_residue_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
                                                            count_connection, gene_to_residue_map_reversed)
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                             NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',
-                            gene_to_residue_info=my_gene_to_residue_info)
+                            gene_to_residue_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite)
 
             # myMeiNN.build()
             myMeiNN.compile()
@@ -606,6 +661,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_NN_loss).csv",
                 sep='\t')
         '''
+
     else:
         model = model_dict[model_type]()
         model.fit(gene_data_train.T, y_train)
@@ -624,7 +680,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
-    return myMeiNN
+    return myMeiNN,residuals_name
 
 
 def train_VAE(model, train_db, optimizer=tf.keras.optimizers.Adam(0.001), n_input=80):

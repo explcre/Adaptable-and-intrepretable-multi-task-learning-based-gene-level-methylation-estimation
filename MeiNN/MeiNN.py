@@ -76,7 +76,7 @@ class MeiNN:
 
     """
 
-    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt",gene_to_site_dir=r"./platform.json",gene_to_residue_info=None):
+    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt",gene_to_site_dir=r"./platform.json",gene_to_residue_info=None,toAddGeneSite=True):
         """
 
         :param model_dir: Directory to save training weights and log files
@@ -105,6 +105,7 @@ class MeiNN:
         self.HIDDEN_DIMENSION=HIDDEN_DIMENSION
         self.gene_to_site_dir=gene_to_site_dir
         self.gene_to_residue_info=gene_to_residue_info
+        self.toAddGeneSite=toAddGeneSite
         self.autoencoder, self.encoder,self.fcn = self.build()
 
 
@@ -156,6 +157,10 @@ class MeiNN:
         residue_layer_dim = len(self.gene_to_residue_info.residue_to_id_map)
 
         in_dim = residue_layer_dim#int(809)#modified 2022-4-14
+        print("residue_layer_dim=")
+        print(residue_layer_dim)
+        print("gene_layer_dim=")
+        print(gene_layer_dim)
         # Compress the dimension to latent_dim
         mid_dim = int(math.sqrt(in_dim * latent_dim))
         q3_dim = int(math.sqrt(in_dim * mid_dim))
@@ -430,17 +435,22 @@ class MeiNN:
 
         '''
         def myLoss(y_true,y_pred):
-            weight=self.fcn.get_weights()
-            for i in range(len(weight)):
-                print("weight[%d]*******************************************"%i)
-                #print(weight[i])
-                print(weight[i].shape)
-            print("self.gene_to_residue_info.gene_to_residue_map.shape")
-            print(len(self.gene_to_residue_info.gene_to_residue_map))
-            print(len(self.gene_to_residue_info.gene_to_residue_map[0]))
-            rate=2.0
-            regular=abs(rate*weight[17]*self.gene_to_residue_info.gene_to_residue_map_reversed)
-            return losses.binary_crossentropy(y_true,y_pred)+np.sum(regular)#+1000*np.random.uniform(1)
+            if self.toAddGeneSite:
+                weight=self.fcn.get_weights()
+                for i in range(len(weight)):
+                    print("weight[%d]*******************************************"%i)
+                    #print(weight[i])
+                    print(weight[i].shape)
+                print("self.gene_to_residue_info.gene_to_residue_map.shape")
+                print(len(self.gene_to_residue_info.gene_to_residue_map))
+                print(len(self.gene_to_residue_info.gene_to_residue_map[0]))
+                rate=2.0
+                regular=abs(rate*weight[17]*self.gene_to_residue_info.gene_to_residue_map_reversed)
+
+                return losses.binary_crossentropy(y_true,y_pred)+np.sum(regular)#+1000*np.random.uniform(1)
+            else:
+                return losses.binary_crossentropy(y_true, y_pred)
+
 
         optimizer = self.config['OPTIMIZER']
         self.autoencoder.compile(optimizer=optimizer, loss='binary_crossentropy')

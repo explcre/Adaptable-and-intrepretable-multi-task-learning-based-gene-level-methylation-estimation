@@ -120,7 +120,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     residue_to_id_map = {}
     gene_present_list = []
     mode_all_gene_and_residue = False
-
+    '''
     data_train_df=pd.DataFrame(data_train)
     print("data_train_df=")
     print(data_train_df)
@@ -164,7 +164,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     print("selected_residue_train_data)")
     print(selected_residue_train_data)
     data_train=selected_residue_train_data
-
+    '''
     #data_train_label_df.sort_values(by='pvalue',ascending=True)
     #t_test_result.pvalue.sort()
     toPrintInfo=False

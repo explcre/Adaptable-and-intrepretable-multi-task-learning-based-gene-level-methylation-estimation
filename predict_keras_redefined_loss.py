@@ -115,7 +115,8 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             while True:
                 try:
                     count += 1
-                    print("count=%d"% count)
+                    if count % 1000 == 0:
+                        print("count=%d"% count)
                     temp = pickle.load(f)
                     gene = temp[0]
                     if(model_type!='AE'):
@@ -123,7 +124,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                     print_flag=False
                     for iii,residue in enumerate(data_test.index):
                         percentage=int(float(iii)/len(data_test.index)*100)
-                        if percentage % 50 ==0 and print_flag==False:
+                        if count % 1000==0 and percentage % 50 ==0 and print_flag==False:
                             print_flag=True
                             print("now in data test index %d ,%f percent"%(iii,percentage))
 

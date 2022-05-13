@@ -39,7 +39,8 @@ def cube_data(data):
     return data ** 3
 
 
-def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type,residue_name_list=[]):
+def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type,residue_name_list=[],
+            ):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression, 'L1': Lasso,
@@ -205,8 +206,25 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             print("prediction is")
             print(pred_out)
 
+            normalized_pred_out=[]
+            num_wrong_pred=0
+            for i,item in enumerate(pred_out):
+                if item >= 0.5:
+                    normalized_pred_out.append(1)
+                    num_wrong_pred += round(abs(Y_test[i]-1.0))
+                elif item < 0.5:
+                    normalized_pred_out.append(0)
+                    num_wrong_pred += round(abs(Y_test[i] - 0.0))
+
+            print("normalized pred_out=")
+            print(normalized_pred_out)
+            print("test label is")
+            print(Y_test)
+            print("num_wrong_pred=%d, total test num=%d,accuracy=%f"%(num_wrong_pred,len(Y_test),1.0-num_wrong_pred/len(Y_test)))
+
             #out = out.view(out.size(0), -1)
             data_test_pred = pred_out#.numpy()
+            normalized_data_test_pred = normalized_pred_out
             #print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
 
             '''if count == 1:
@@ -224,6 +242,11 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
     data_test_ae_out = pd.DataFrame(np.array(ae_out))
     data_test_ae_out.to_csv(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
                           sep='\t')
+
+    normalized_data_test_pred = pd.DataFrame(np.array( normalized_data_test_pred))
+    normalized_data_test_pred.to_csv(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "normalized_pred).txt",
+                          sep='\t')
+
     print("Predicting finish!")
 
 

@@ -74,7 +74,8 @@ def cube_data(data):
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        toAddGenePathway=False,toAddGeneSite=False,num_of_selected_residue=1000,
+        toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='softmax',datasetNameList=[],
+        num_of_selected_residue=1000,
         AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.txt",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
@@ -317,7 +318,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                             NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',
-                            gene_to_residue_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite)
+                            gene_to_residue_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                            multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList)
 
             # myMeiNN.build()
             myMeiNN.compile()

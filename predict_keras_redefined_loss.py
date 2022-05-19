@@ -40,6 +40,7 @@ def cube_data(data):
 
 
 def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type,residue_name_list=[],
+            datasetNameList=[]
             ):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
@@ -206,15 +207,26 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             print("prediction is")
             print(pred_out)
 
-            normalized_pred_out=[]
-            num_wrong_pred=0
-            for i,item in enumerate(pred_out):
-                if item >= 0.5:
-                    normalized_pred_out.append(1)
-                    num_wrong_pred += round(abs(Y_test[i]-1.0))
-                elif item < 0.5:
-                    normalized_pred_out.append(0)
-                    num_wrong_pred += round(abs(Y_test[i] - 0.0))
+            normalized_pred_out = [[0]*len(datasetNameList) for i in range(len(pred_out))]
+            num_wrong_pred = 0
+            if len(datasetNameList)>1:
+
+                for i,item in enumerate(pred_out):
+                    for i_dataset, datasetName in enumerate(datasetNameList):
+                        if item[i_dataset] >= 0.5:
+                            normalized_pred_out[i_dataset][i]=1
+                            num_wrong_pred += round(abs(Y_test.iloc[i]-1.0))
+                        elif item[i_dataset] < 0.5:
+                            normalized_pred_out[i_dataset][i]=0
+                            num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+            elif len(datasetNameList) == 1:
+                for i,item in enumerate(pred_out):
+                    if item >= 0.5:
+                        normalized_pred_out.append(1)
+                        num_wrong_pred += round(abs(Y_test.iloc[i]-1.0))
+                    elif item < 0.5:
+                        normalized_pred_out.append(0)
+                        num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
 
             print("normalized pred_out=")
             print(normalized_pred_out)

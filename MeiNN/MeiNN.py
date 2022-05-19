@@ -76,7 +76,11 @@ class MeiNN:
 
     """
 
-    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt",gene_to_site_dir=r"./platform.json",gene_to_residue_info=None,toAddGeneSite=True):
+    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,
+                 HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',
+                 train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt",
+                 gene_to_site_dir=r"./platform.json",gene_to_residue_info=None,toAddGeneSite=True,
+                 multiDatasetMode="softmax",datasetNameList=[]):
         """
 
         :param model_dir: Directory to save training weights and log files
@@ -106,6 +110,8 @@ class MeiNN:
         self.gene_to_site_dir=gene_to_site_dir
         self.gene_to_residue_info=gene_to_residue_info
         self.toAddGeneSite=toAddGeneSite
+        self.multiDatasetMode=multiDatasetMode
+        self.datasetNameList=datasetNameList
         self.autoencoder, self.encoder,self.fcn = self.build()
 
 
@@ -337,7 +343,7 @@ class MeiNN:
 
         in_dim = latent_dim
         # output dimension is 1
-        out_dim = 1
+        out_dim = len(self.datasetNameList)
 
         mid_dim = int(math.sqrt(in_dim * latent_dim))
         q3_dim = int(math.sqrt(in_dim * mid_dim))
@@ -351,6 +357,7 @@ class MeiNN:
         out_x = Dense(mid_dim, activation='relu')(out_x)
         out_x = Dense(q1_dim, activation='relu')(out_x)
         self.output = Dense(out_dim, activation='sigmoid', name="prediction")(out_x)  # originally sigmoid
+
 
         def reconstruct_and_predict_loss(x, ae_outputs, output, y_train, y_index):
             reconstruct_loss = losses.binary_crossentropy(x, ae_outputs)
@@ -372,8 +379,16 @@ class MeiNN:
 
         reconstruct_loss = losses.binary_crossentropy(input, self.ae_outputs)
         #predict_loss = losses.binary_crossentropy(y_true,y_pred)
-
-        self.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])#K.mean(reconstruct_loss + predict_loss)
+        print("in MeiNNself.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])")
+        print("y_true=self.y_train[0]     y_train=")
+        print(self.y_train)
+        #print("self.y_train[0]=")
+        #print(self.y_train[0])
+        #print("y_pred=self.output[0]     output=")
+        #print(self.output)
+        #print("self.output[0]")
+        #print(self.output[0])
+        #self.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])#K.mean(reconstruct_loss + predict_loss)
 
         # build the fcn model
         self.fcn = Model(inputs=[input], outputs=[self.ae_outputs,self.output])

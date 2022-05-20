@@ -209,8 +209,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
 
             normalized_pred_out = [[0]*len(datasetNameList) for i in range(len(pred_out))]
             num_wrong_pred = 0
-            if len(datasetNameList)>1:
-
+            if len(datasetNameList) > 1:
                 for i,item in enumerate(pred_out):
                     for i_dataset, datasetName in enumerate(datasetNameList):
                         if item[i_dataset] >= 0.5:

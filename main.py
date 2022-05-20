@@ -23,21 +23,25 @@ toTrainNN = True
 isPredict = True
 toTrainMeiNN = True
 toAddGeneSite = True
+toAddGenePathway = False
+just_check_data = False
 onlyGetPredictionFromLocalAndCheckAccuracy = False
-
-
+lossMode='reg_mean'
+#reg_mean: we set loss as mean of regularization+prediction loss
+#auto_scale:
+#no:no mode
 selectNumResidueMode = 'num'
 # num:define num of selected residue
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 1000
+num_of_selected_residue = 2000
 
 isMultiDataset=True
 multiDatasetMode='softmax'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList =["diabetes1",'Psoriasis','IBD']# ['diabetes1','Psoriasis','SLE']
+datasetNameList =["RA","diabetes1","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
 AE_epoch = 1000*len(datasetNameList)
 NN_epoch = 1000*len(datasetNameList)
@@ -50,8 +54,8 @@ for i in datasetNameList:
     code += (i+' ') # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000,2000,2000]
 h_dim = 60*len(datasetNameList)
-date = '5-18-3set-multi-%s-keras-reg-myloss-explainable-h_dim%d-epoch%d-geneSite=%s-mode-%s-selected%d' % (
-isMultiDataset,h_dim, AE_epoch, toAddGeneSite,selectNumResidueMode, num_of_selected_residue)
+date = '5-20%s-h_dim%d-epoch%d-geneSite=%s-mode-%s-selected%d-lossMode-%s' % (
+    (len(datasetNameList)>1),h_dim, AE_epoch, toAddGeneSite,selectNumResidueMode, num_of_selected_residue,lossMode)
 keras = True
 path = r"./result/"
 selected_residue_name_list=set()
@@ -184,8 +188,8 @@ elif len(datasetNameList) > 0:
     test_label_filename_list.append(r"./dataset/label_test.txt")  #
 else:
     raise Exception("ERROR: datasetNameList is empty")
-just_check_data = False
-toAddGenePathway = False
+
+
 
 '''
 def print_model_summary_pytorch():
@@ -362,6 +366,7 @@ if isTrain:
                                              toAddGeneSite=toAddGeneSite,multiDatasetMode='softmax',
                                              datasetNameList=datasetNameList,
                                              num_of_selected_residue=num_of_selected_residue,
+                                             lossMode=lossMode,
                                              AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch)
             myMeiNN.fcn.summary()
             myMeiNN.autoencoder.summary()

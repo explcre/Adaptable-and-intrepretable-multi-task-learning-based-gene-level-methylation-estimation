@@ -75,8 +75,8 @@ def cube_data(data):
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
         toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='softmax',datasetNameList=[],
-        num_of_selected_residue=1000,
-        AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.txt",
+        num_of_selected_residue=1000,lossMode='reg_mean',
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
@@ -87,12 +87,19 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     if toAddGenePathway:
         # the following added 22-4-24 for go term pathway
         gene_pathway_csv_data = pd.read_csv(gene_pathway_dir, header=None, dtype='int')  # 防止弹出警告
-        pathway_name_data = pd.read_csv(pathway_name_dir, header=0, dtype='str')
+        pathway_name_data = pd.read_csv(pathway_name_dir,header=None)#, dtype='str', sep=',')#, header=0, dtype='str')
         # pathway_name_data_df=pathway_name_data.values.tolist()
-        gene_name_data = pd.read_csv(gene_name_dir, header=0, dtype='str', sep=',')
+        gene_name_data = pd.read_csv(gene_name_dir,header=None)#, dtype='str', sep=',')#, header=0, dtype='str', sep=',')
         # gene_name_data_df = gene_name_data.values.tolist()
         gene_pathway_df = pd.DataFrame(gene_pathway_csv_data)  # , columns=gene_name_data, index=pathway_name_data)
-
+        print("INFO: gene_pathway_df=")
+        print(gene_pathway_df)
+        gene_pathway_df.index=pathway_name_data
+        gene_pathway_df.columns=gene_name_data
+        print("INFO: gene_pathway_df after adding column and index")
+        print(gene_pathway_df)
+        print("gene_pathway_df.loc['(GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE,)']")
+        print(gene_pathway_df.loc['(GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE,)'])
         # genename_to_genepathway_index_map=
         # gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
         # print(gene_pathway_df.head(10))
@@ -119,7 +126,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     count_residue = 0
     gene_to_id_map = {}
     residue_to_id_map = {}
-    gene_present_list = []
+    gene_present_list = set()
     mode_all_gene_and_residue = False
     '''
     data_train_df=pd.DataFrame(data_train)
@@ -196,7 +203,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     if gene not in gene_to_id_map:
                         gene_to_id_map[gene] = count_gene
                         count_gene += 1
-                        gene_present_list.append(gene)
+                        gene_present_list.add(gene)
                         # gene_to_residue_map.append([])
                     if residue not in residue_to_id_map:
                         residue_to_id_map[residue] = count_residue  # added 22-4-14
@@ -228,8 +235,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             print('finish!')
 
     if toAddGenePathway:
-        gene_present_list_df = pd.DataFrame(gene_present_list, columns=['name'])
+        gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])
         temp_list = list(range(len(gene_name_data)))
+
         # for i, val in enumerate(temp_list):
         #    temp_list[i] = str(val)
         gene_present_index = gene_present_list_df.replace(gene_name_data.values.tolist(), temp_list)
@@ -319,7 +327,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                             NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',
                             gene_to_residue_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
-                            multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList)
+                            multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
 
             # myMeiNN.build()
             myMeiNN.compile()

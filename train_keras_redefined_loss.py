@@ -4,7 +4,7 @@ import re
 # import resVAE.utils as cutils
 # from resVAE.config import config
 # import resVAE.reporting as report
-from MeiNN.MeiNN import MeiNN, gene_to_residue_info
+from MeiNN.MeiNN import MeiNN, gene_to_residue_or_pathway_info
 from MeiNN.config import config
 import os
 import json
@@ -75,7 +75,8 @@ def cube_data(data):
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
         toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='softmax',datasetNameList=[],
-        num_of_selected_residue=1000,lossMode='reg_mean',
+        num_of_selected_residue=1000,lossMode='reg_mean',selectNumPathwayMode = '=num_gene',
+        num_of_selected_pathway = 500,
         AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
@@ -94,12 +95,18 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         gene_pathway_df = pd.DataFrame(gene_pathway_csv_data)  # , columns=gene_name_data, index=pathway_name_data)
         print("INFO: gene_pathway_df=")
         print(gene_pathway_df)
-        gene_pathway_df.index=pathway_name_data
-        gene_pathway_df.columns=gene_name_data
+        print("INFO : pathway_name_data")
+        print(pathway_name_data)
+        print("INFO : gene_name_data")
+        print(gene_name_data)
+        gene_pathway_df.index=pathway_name_data[0].values.tolist()
+        gene_pathway_df.columns=gene_name_data[0].values.tolist()#.index.values.tolist()
         print("INFO: gene_pathway_df after adding column and index")
         print(gene_pathway_df)
-        print("gene_pathway_df.loc['(GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE,)']")
-        print(gene_pathway_df.loc['(GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE,)'])
+        #print("INFO: gene_pathway_df.index")
+        #print(gene_pathway_df.index.values.tolist())
+        print("gene_pathway_df.loc['GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE']")
+        print(gene_pathway_df.loc['GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE'])
         # genename_to_genepathway_index_map=
         # gene_pathway_df.rename(columns=gene_name_data, index=pathway_name_data)
         # print(gene_pathway_df.head(10))
@@ -234,7 +241,48 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         if toPrintInfo:
             print('finish!')
 
+    #############2021-5-21##############
+
     if toAddGenePathway:
+        gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])
+        gene_present_set=set(gene_present_list)
+        where_input_gene_is_not_in_go_term_set=gene_present_set.difference(set(gene_pathway_df.columns.values.tolist()))
+        print("where_input_gene_is_not_in_go_term_set")
+        print(where_input_gene_is_not_in_go_term_set)
+        gene_pathway_df_with_input_gene=gene_pathway_df.loc[gene_pathway_df.apply(np.sum, axis=1) > 0 ]
+        gene_pathway_df_with_input_gene[list(where_input_gene_is_not_in_go_term_set)]=np.zeros((gene_pathway_df_with_input_gene.shape[0],len(where_input_gene_is_not_in_go_term_set)), dtype=np.int)
+        print("gene_pathway_df_with_input_gene")
+        print(gene_pathway_df_with_input_gene)
+        print("selected present gene from go term:")
+        gene_pathway_df_with_only_present_gene=gene_pathway_df_with_input_gene[gene_present_list]
+        print(gene_pathway_df_with_only_present_gene)
+        gene_pathway_needed=gene_pathway_df_with_only_present_gene.loc[gene_pathway_df_with_only_present_gene.apply(np.sum, axis=1) > 0 ]
+        print(" remove rows that are all 0,gene_pathway_needed")
+        print(gene_pathway_needed)
+        gene_pathway_needed[list(where_input_gene_is_not_in_go_term_set)] = np.ones(
+            (gene_pathway_needed.shape[0], len(where_input_gene_is_not_in_go_term_set)), dtype=np.int)
+        print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene")
+        print(gene_pathway_needed)
+        gene_pathway_needed['gene-pathway sum']=gene_pathway_needed.apply(lambda x:sum(x),axis=1)
+        print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene,with connection sum")
+        print(gene_pathway_needed)
+        gene_pathway_needed.sort_values(by='gene-pathway sum',ascending=False)
+        print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene,sorted by connection sum")
+        print(gene_pathway_needed)
+        if selectNumPathwayMode=='=num_gene':
+            selected_pathway_num=gene_pathway_needed.shape[1]
+        elif selectNumPathwayMode=='equal_difference':
+            selected_pathway_num=count_gene-(count_residue-count_gene)
+        elif selectNumPathwayMode=='equal_difference':
+            selected_pathway_num=num_of_selected_pathway
+        gene_pathway_needed=gene_pathway_needed.iloc[:selected_pathway_num-1,:-1]
+        print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene,sorted by connection sum,finally selected certain pathway:")
+        print(gene_pathway_needed)
+        gene_pathway_needed_reversed=gene_pathway_needed.replace([1,0],[0,1]).values.tolist()
+        print("gene_pathway_needed_reversed:")
+        print(gene_pathway_needed.replace([1,0],[0,1]))
+    ####################################
+    if toAddGenePathway and False:
         gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])
         temp_list = list(range(len(gene_name_data)))
 
@@ -321,12 +369,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         if True or toTrainMeiNN:
             print("INFO:we entered to train MeiNN code")
             gene_data_train=np.load(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_data_train)" + ".txt.npy")
-            my_gene_to_residue_info = gene_to_residue_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
-                                                           count_connection, gene_to_residue_map_reversed)
+            my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
+                                                           count_connection, gene_to_residue_map_reversed,gene_pathway_needed,gene_pathway_needed_reversed)
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                             NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',
-                            gene_to_residue_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                            gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                            toAddGenePathway=toAddGenePathway,
                             multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
 
             # myMeiNN.build()
@@ -334,7 +383,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
             myMeiNN.fit()
 
-            if toAddGenePathway:
+
+            if toAddGenePathway and False:
                 print("***************************")
                 print("len residuals_name%d" % len(residuals_name))
 

@@ -207,6 +207,19 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             print("prediction is")
             print(pred_out)
 
+            # 模型评估
+            score = loaded_fcn.evaluate(gene_data_test.T, [gene_data_test.T,Y_test.T], verbose=0)
+            print("FCN score")
+            print(score)
+            print('FCN Test score:', score[0])
+            print('FCN Test accuracy:', score[1])
+
+            fcn_predict_model.compile(optimizer='Adam',loss='binary_crossentropy')
+            score_pred = fcn_predict_model.evaluate(gene_data_test.T, Y_test.T, verbose=0)
+            print("prediction score")
+            print(score_pred)
+            #print('prediction Test score:', score_pred[0])
+            #print('prediction Test accuracy:', score_pred[1])
             normalized_pred_out = [[0]*len(datasetNameList) for i in range(len(pred_out))]
             num_wrong_pred = 0
             if len(datasetNameList) > 1:

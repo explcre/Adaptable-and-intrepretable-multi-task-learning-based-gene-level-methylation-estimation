@@ -23,7 +23,7 @@ toTrainNN = True
 isPredict = True
 toTrainMeiNN = True
 toAddGeneSite = True
-toAddGenePathway = False
+toAddGenePathway = True
 just_check_data = False
 onlyGetPredictionFromLocalAndCheckAccuracy = False
 lossMode='reg_mean'
@@ -35,16 +35,20 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 2000
-
+num_of_selected_residue = 1000
+selectNumPathwayMode = 'equal_difference'#'=num_gene'
+# =num_gene: equal number of gene selected
+# 'equal_difference' make pathway-gene-residue an arithmetic sequence
+# num : give a value
+num_of_selected_pathway = num_of_selected_residue/2
 isMultiDataset=True
 multiDatasetMode='softmax'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList =["RA","diabetes1","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+datasetNameList =["diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
-AE_epoch = 1000*len(datasetNameList)
-NN_epoch = 1000*len(datasetNameList)
+AE_epoch = 100*len(datasetNameList)
+NN_epoch = 100*len(datasetNameList)
 ae = None
 fcn = None
 myMeiNN = None
@@ -54,8 +58,8 @@ for i in datasetNameList:
     code += (i+' ') # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000,2000,2000]
 h_dim = 60*len(datasetNameList)
-date = '5-20%s-h_dim%d-epoch%d-geneSite=%s-mode-%s-selected%d-lossMode-%s' % (
-    (len(datasetNameList)>1),h_dim, AE_epoch, toAddGeneSite,selectNumResidueMode, num_of_selected_residue,lossMode)
+date = '5-24-test-gene_path%s-h_dim%d-epoch%d-geneSite=%s,genePath=%s-mode-%s-selected%d-lossMode-%s' % (
+    (len(datasetNameList)>1),h_dim, AE_epoch, toAddGeneSite,toAddGenePathway,selectNumResidueMode, num_of_selected_residue,lossMode)
 keras = True
 path = r"./result/"
 selected_residue_name_list=set()
@@ -366,7 +370,8 @@ if isTrain:
                                              toAddGeneSite=toAddGeneSite,multiDatasetMode='softmax',
                                              datasetNameList=datasetNameList,
                                              num_of_selected_residue=num_of_selected_residue,
-                                             lossMode=lossMode,
+                                             lossMode=lossMode,selectNumPathwayMode=selectNumPathwayMode,
+                                             num_of_selected_pathway=num_of_selected_pathway,
                                              AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch)
             myMeiNN.fcn.summary()
             myMeiNN.autoencoder.summary()

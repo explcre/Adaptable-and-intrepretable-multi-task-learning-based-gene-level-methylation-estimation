@@ -1,30 +1,30 @@
-#Copyright (C) 2022 Pengcheng Xu
+# Copyright (C) 2022 Pengcheng Xu
 
-#This program is free software: you can redistribute it and/or modify
-#it under the terms of the GNU General Public License as published by
-#the Free Software Foundation, either version 3 of the License, or
-#(at your option) any later version.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 
-#This program is distributed in the hope that it will be useful,
-#but WITHOUT ANY WARRANTY; without even the implied warranty of
-#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#GNU General Public License for more details.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 
-#You should have received a copy of the GNU General Public License
-#along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 This module contains the main code for generating and fitting a class-aware variational autoencoder.
 
 """
 import tensorflow as tf
-#tf.compat.v1.disable_eager_execution()#newly-added-3-27
+# tf.compat.v1.disable_eager_execution()#newly-added-3-27
 import json
 import os
 import sys
 import argparse
 
-#import MeiNN.utils as cutils
+# import MeiNN.utils as cutils
 from keras.utils.multi_gpu_utils import multi_gpu_model
 from keras.utils.vis_utils import plot_model
 
@@ -39,7 +39,7 @@ from keras import losses
 from keras import regularizers
 from keras.layers import Dense, Input
 from keras.models import Model, model_from_json, load_model
-#from keras.utils import plot_model, multi_gpu_model, normalize # not support 22-3-28
+# from keras.utils import plot_model, multi_gpu_model, normalize # not support 22-3-28
 from keras.applications.vgg19 import VGG19
 from keras.activations import relu
 import h5py
@@ -63,24 +63,30 @@ def _sampling_function(args):
     return (z_mean + K.exp(0.5 * z_log_var) * epsilon) * mask
 
 
-class gene_to_residue_info:
-    def __init__(self, gene_to_id_map, residue_to_id_map, gene_to_residue_map, count_connection,gene_to_residue_map_reversed):
+class gene_to_residue_or_pathway_info:
+    def __init__(self, gene_to_id_map, residue_to_id_map, gene_to_residue_map, count_connection,
+                 gene_to_residue_map_reversed, gene_pathway,gene_pathway_reversed):
         self.gene_to_id_map = gene_to_id_map
         self.residue_to_id_map = residue_to_id_map
         self.gene_to_residue_map = gene_to_residue_map
         self.count_connection = count_connection
-        self.gene_to_residue_map_reversed=gene_to_residue_map_reversed
+        self.gene_to_residue_map_reversed = gene_to_residue_map_reversed
+        self.gene_pathway = gene_pathway
+        self.gene_pathway_reversed = gene_pathway_reversed
+
 
 class MeiNN:
     """Main class for the MeiNN architecture.
 
     """
 
-    def __init__(self, config,path,date,code, X_train, y_train, platform, model_type, data_type,
-                 HIDDEN_DIMENSION,toTrainMeiNN,AE_epoch_from_main=1000,NN_epoch_from_main=1000, model_dir='./saved_model/',
-                 train_dataset_filename=r"./dataset/data_train.txt",train_label_filename= r"./dataset/label_train.txt",
-                 gene_to_site_dir=r"./platform.json",gene_to_residue_info=None,toAddGeneSite=True,
-                 multiDatasetMode="softmax",datasetNameList=[]):
+    def __init__(self, config, path, date, code, X_train, y_train, platform, model_type, data_type,
+                 HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=1000, NN_epoch_from_main=1000,
+                 model_dir='./saved_model/',
+                 train_dataset_filename=r"./dataset/data_train.txt", train_label_filename=r"./dataset/label_train.txt",
+                 gene_to_site_dir=r"./platform.json", gene_to_residue_or_pathway_info=None,
+                 toAddGeneSite=True, toAddGenePathway=True,
+                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean'):
         """
 
         :param model_dir: Directory to save training weights and log files
@@ -97,7 +103,7 @@ class MeiNN:
         self.classes = None
         self.dot_weights = 0
         self.gpu_count = K.tensorflow_backend._get_available_gpus()
-        #self.gpu_count = tf.config.list_physical_devices('GPU')
+        # self.gpu_count = tf.config.list_physical_devices('GPU')
         self.x_train = X_train  # pd.read_table(train_dataset_filename,index_col=0)
         self.y_train = y_train  # pd.read_table(train_label_filename, index_col=0).values.ravel()
         self.NN_epoch_from_main = NN_epoch_from_main
@@ -106,14 +112,15 @@ class MeiNN:
         self.code = code
         self.model_type = model_type
         self.data_type = data_type
-        self.HIDDEN_DIMENSION=HIDDEN_DIMENSION
-        self.gene_to_site_dir=gene_to_site_dir
-        self.gene_to_residue_info=gene_to_residue_info
-        self.toAddGeneSite=toAddGeneSite
-        self.multiDatasetMode=multiDatasetMode
-        self.datasetNameList=datasetNameList
-        self.autoencoder, self.encoder,self.fcn = self.build()
-
+        self.HIDDEN_DIMENSION = HIDDEN_DIMENSION
+        self.gene_to_site_dir = gene_to_site_dir
+        self.gene_to_residue_or_pathway_info = gene_to_residue_or_pathway_info
+        self.toAddGeneSite = toAddGeneSite
+        self.toAddGenePathway= toAddGenePathway
+        self.multiDatasetMode = multiDatasetMode
+        self.datasetNameList = datasetNameList
+        self.lossMode = lossMode
+        self.autoencoder, self.encoder, self.fcn, self.pred_nn = self.build()
 
     def build(self, update: bool = False):
         """
@@ -143,13 +150,13 @@ class MeiNN:
         assert decoder_bias in ['all', 'none', 'last']
         assert decoder_regularizer in ['var_l1', 'var_l2', 'var_l1_l2',
                                        'l1', 'l2', 'l1_l2', 'dot', 'dot_weights', 'none']
-        assert base_loss in ['mse','mae']
+        assert base_loss in ['mse', 'mae']
 
         #######################################################################
-        #--2022-3-28 Pengcheng Xu
+        # --2022-3-28 Pengcheng Xu
 
-
-        latent_dim = self.HIDDEN_DIMENSION
+        latent_dim = self.gene_to_residue_or_pathway_info.gene_pathway.shape[0]#self.HIDDEN_DIMENSION
+        print("INFO: latentdim=%d"%latent_dim)
         decoder_regularizer = 'var_l1'
         decoder_regularizer_initial = 0.0001
         activ = 'relu'
@@ -159,10 +166,10 @@ class MeiNN:
         decoder_bn = False
         decoder_bias = 'last'
         last_activ = 'tanh'  # 'softmax'
-        gene_layer_dim = len(self.gene_to_residue_info.gene_to_id_map)
-        residue_layer_dim = len(self.gene_to_residue_info.residue_to_id_map)
+        gene_layer_dim = len(self.gene_to_residue_or_pathway_info.gene_to_id_map)
+        residue_layer_dim = len(self.gene_to_residue_or_pathway_info.residue_to_id_map)
 
-        in_dim = residue_layer_dim#int(809)#modified 2022-4-14
+        in_dim = residue_layer_dim  # int(809)#modified 2022-4-14
         print("residue_layer_dim=")
         print(residue_layer_dim)
         print("gene_layer_dim=")
@@ -171,9 +178,9 @@ class MeiNN:
         mid_dim = int(math.sqrt(in_dim * latent_dim))
         q3_dim = int(math.sqrt(in_dim * mid_dim))
         q1_dim = int(math.sqrt(latent_dim * mid_dim))
-        #decoder_shape = [latent_dim, q1_dim, mid_dim, q3_dim]
-        encoder_shape = [gene_layer_dim,residue_layer_dim,latent_dim]
-        decoder_shape = [latent_dim, gene_layer_dim] #modified on 2022-4-14 #, residue_layer_dim]
+        # decoder_shape = [latent_dim, q1_dim, mid_dim, q3_dim]
+        encoder_shape = [gene_layer_dim, residue_layer_dim, latent_dim]
+        decoder_shape = [latent_dim, gene_layer_dim]  # modified on 2022-4-14 #, residue_layer_dim]
         input_shape = (residue_layer_dim)
 
         if decoder_regularizer == 'dot_weights':
@@ -196,6 +203,7 @@ class MeiNN:
 
             def get_config(self):
                 return {'l_rate': self.l_rate}
+
         # L2 regularizer with the scaling factor updateable through the l_rate variable (callback)
         def variable_l2(weight_matrix):
             return l_rate * K.sum(K.square(weight_matrix))
@@ -216,17 +224,14 @@ class MeiNN:
             penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
             return penalty_dot + penalty_l1
 
-
         def dotprod_inverse(weights_matrix):
             penalty_dot = 0.1 * K.mean(
                 K.square(K.dot(K.transpose(weights_matrix), weights_matrix) * dot_weights))
             penalty_l1 = 0.000 * l_rate * K.sum(K.abs(weights_matrix))
             return penalty_dot + penalty_l1
 
-
         def relu_advanced(x):
             return K.relu(x, threshold=relu_thresh)
-
 
         if activ == 'relu':
             activ = relu_advanced
@@ -253,7 +258,7 @@ class MeiNN:
             reg = dotprod
             reg1 = dotprod
         elif decoder_regularizer == 'dot_weights':
-            reg1 = dotprod_weights #originally
+            reg1 = dotprod_weights  # originally
             reg = dotprod
         else:
             reg = None
@@ -266,12 +271,13 @@ class MeiNN:
         encoded = layers.Dense(mid_dim, activation='relu')(encoded)
         encoded = layers.Dense(q1_dim, activation='relu')(encoded)
         encoder_output = layers.Dense(latent_dim, name="input_to_encoding")(encoded)
-
-        decoded = layers.Dense(q1_dim,
+        decoded = encoder_output
+        '''
+        decoded = layers.Dense(latent_dim,
                                activation=activ,
                                name='Decoder1',
-                               activity_regularizer='l1')(encoder_output)
-        #activity_regularizer=reg1 # originally
+                               activity_regularizer='l1')(encoder_output)'''
+        # activity_regularizer=reg1 # originally
         if decoder_bn:
             decoded = layers.BatchNormalization()(decoded)
         # adds layers to the decoder. See encoder layers
@@ -292,17 +298,15 @@ class MeiNN:
                 if decoder_bn:
                     decoded = layers.BatchNormalization()(decoded)
 
-
-        #kernel_regularizer=reg # originally
+        # kernel_regularizer=reg # originally
 
         if decoder_bias == 'none':
             self.ae_outputs = layers.Dense(input_shape,
-                                      activation=last_activ,
-                                      use_bias=False,name='ae_output')(decoded)
+                                           activation=last_activ,
+                                           use_bias=False, name='ae_output')(decoded)
         else:
             self.ae_outputs = layers.Dense(input_shape,
-                                      activation=last_activ,name='ae_output')(decoded)
-
+                                           activation=last_activ, name='ae_output')(decoded)
 
         # 解码层
         # decoded = Dense(q1_dim, activation='relu')(encoder_output)
@@ -322,24 +326,23 @@ class MeiNN:
         ################################################################
 
         self.input_to_encoding_model = Model(inputs=self.autoencoder.input,
-                                        outputs=self.autoencoder.get_layer('input_to_encoding').output)
+                                             outputs=self.autoencoder.get_layer('input_to_encoding').output)
 
         print("input_to_encoding_model.predict(gene_data_train.T)")
         print(self.input_to_encoding_model.predict(self.x_train))
         # embedding=ae.code(torch.tensor(gene_data_train.T).float())
         embedding = self.input_to_encoding_model.predict(self.x_train)
         embedding_df = pd.DataFrame(embedding)
-        #self.path="./result/"
-        #"C:/Users/xupengch/Downloads/methylation/2020Fall-Adaptable-and-intrepretable-multi-task-learning-based-gene-level-methylation-estimation-main"
-        #+self.path +
+        # self.path="./result/"
+        # "C:/Users/xupengch/Downloads/methylation/2020Fall-Adaptable-and-intrepretable-multi-task-learning-based-gene-level-methylation-estimation-main"
+        # +self.path +
         embedding_df.to_csv(
-             self.path + self.date + "_" + self.code + "_gene_level" + "(" + self.data_type + '_' + self.model_type + "_embedding_original).txt",
+            self.path + self.date + "_" + self.code + "_gene_level" + "(" + self.data_type + '_' + self.model_type + "_embedding_original).txt",
             sep='\t')
 
         print("embedding is ")
         print(embedding)
         print(embedding.shape)
-
 
         in_dim = latent_dim
         # output dimension is 1
@@ -358,7 +361,6 @@ class MeiNN:
         out_x = Dense(q1_dim, activation='relu')(out_x)
         self.output = Dense(out_dim, activation='sigmoid', name="prediction")(out_x)  # originally sigmoid
 
-
         def reconstruct_and_predict_loss(x, ae_outputs, output, y_train, y_index):
             reconstruct_loss = losses.binary_crossentropy(x, ae_outputs)
             print(output[0])
@@ -373,28 +375,32 @@ class MeiNN:
         def my_reconstruct_and_predict_loss(y_true, y_pred, lam=0.5):
             reconstruct_loss = losses.binary_crossentropy(y_true=self.x_train,
                                                           y_pred=self.autoencoder.get_layer('ae_output').output)
-            predict_loss = losses.binary_crossentropy(y_true,y_pred)  # - 0.5 * K.mean(1 + z_log_sigma - K.square(z_mean) - K.exp(z_log_sigma), axis=-1)
+            predict_loss = losses.binary_crossentropy(y_true,
+                                                      y_pred)  # - 0.5 * K.mean(1 + z_log_sigma - K.square(z_mean) - K.exp(z_log_sigma), axis=-1)
             return K.mean(lam * reconstruct_loss + (1 - lam) * predict_loss)
 
-
         reconstruct_loss = losses.binary_crossentropy(input, self.ae_outputs)
-        #predict_loss = losses.binary_crossentropy(y_true,y_pred)
-        print("in MeiNNself.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])")
+        # predict_loss = losses.binary_crossentropy(y_true,y_pred)
+        print(
+            "in MeiNNself.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])")
         print("y_true=self.y_train[0]     y_train=")
         print(self.y_train)
-        #print("self.y_train[0]=")
-        #print(self.y_train[0])
-        #print("y_pred=self.output[0]     output=")
-        #print(self.output)
-        #print("self.output[0]")
-        #print(self.output[0])
-        #self.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])#K.mean(reconstruct_loss + predict_loss)
+        # print("self.y_train[0]=")
+        # print(self.y_train[0])
+        # print("y_pred=self.output[0]     output=")
+        # print(self.output)
+        # print("self.output[0]")
+        # print(self.output[0])
+        # self.reconstruct_and_predict_loss=my_reconstruct_and_predict_loss(y_true=self.y_train[0],y_pred=self.output[0])#K.mean(reconstruct_loss + predict_loss)
 
         # build the fcn model
-        self.fcn = Model(inputs=[input], outputs=[self.ae_outputs,self.output])
+        self.fcn = Model(inputs=[input], outputs=[self.ae_outputs, self.output])
+
+        # build prediction nn
+        self.pred_nn = Model(inputs=input, outputs=self.output)
 
         # compile fcn
-        #self.fcn.compile(optimizer='adam', loss=reconstruct_and_predict_loss,
+        # self.fcn.compile(optimizer='adam', loss=reconstruct_and_predict_loss,
         #          experimental_run_tf_function=False)  # loss='mse'#'binary_crossentropy'
 
         '''
@@ -421,7 +427,7 @@ class MeiNN:
 
         # set built to true to later avoid inadvertently overwriting a built model. TODO: implement this check
         self.built = True
-        return self.autoencoder, self.encoder,self.fcn
+        return self.autoencoder, self.encoder, self.fcn, self.pred_nn
 
     def loss(self, y_true=None, y_pred=None):
         return self.reconstruct_and_predict_loss
@@ -449,31 +455,52 @@ class MeiNN:
             self.resvae_model = multi_gpu_model(model=self.fcn, gpus=self.config['MULTI_GPU'])
 
         '''
-        def myLoss(y_true,y_pred):
+
+        def myLoss(y_true, y_pred):
+            weight = self.fcn.get_weights()
+            ans = losses.binary_crossentropy(y_true, y_pred)
+            rate_site = 2.0
+            rate_pathway = 2.0
             if self.toAddGeneSite:
-                weight=self.fcn.get_weights()
                 for i in range(len(weight)):
-                    print("weight[%d]*******************************************"%i)
-                    #print(weight[i])
+                    print("weight[%d]*******************************************" % i)
+                    # print(weight[i])
                     print(weight[i].shape)
                 print("self.gene_to_residue_info.gene_to_residue_map.shape")
-                print(len(self.gene_to_residue_info.gene_to_residue_map))
-                print(len(self.gene_to_residue_info.gene_to_residue_map[0]))
-                rate=2.0
-                regular=abs(rate*weight[17]*self.gene_to_residue_info.gene_to_residue_map_reversed)
+                print(len(self.gene_to_residue_or_pathway_info.gene_to_residue_map))
+                print(len(self.gene_to_residue_or_pathway_info.gene_to_residue_map[0]))
 
-                return losses.binary_crossentropy(y_true,y_pred)+np.sum(regular)#+1000*np.random.uniform(1)
-            else:
-                return losses.binary_crossentropy(y_true, y_pred)
+                regular_site = abs(rate_site * weight[15] * self.gene_to_residue_or_pathway_info.gene_to_residue_map_reversed)
 
+                if self.toAddGenePathway:
+                    regular_pathway = abs(
+                        rate_pathway * weight[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
+                    if self.lossMode == 'reg_mean':
+                        ans += np.sum(regular_site) / len(regular_site) + np.sum(regular_pathway) / len(regular_pathway)
+                    else:
+                        ans += np.sum(regular_site) + np.sum(regular_pathway)
+                elif self.lossMode == 'reg_mean':
+                    ans += np.sum(regular_site) / len(regular_site)
+                else:
+                    ans += np.sum(regular_site)  # +1000*np.random.uniform(1)
+            elif self.toAddGenePathway:
+                    regular_pathway = abs(
+                        rate_pathway * weight[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
+                    if self.lossMode == 'reg_mean':
+                        ans += np.sum(regular_pathway) / len(regular_pathway)
+                    else:
+                        ans += np.sum(regular_pathway)
+            return ans
 
         optimizer = self.config['OPTIMIZER']
+        from keras import metrics
         self.autoencoder.compile(optimizer=optimizer, loss='binary_crossentropy')
-        self.fcn.compile(optimizer=optimizer, loss=[myLoss,losses.binary_crossentropy
-                                                ])#experimental_run_tf_function=False
-        #self.fcn.compile(optimizer=optimizer, loss=[losses.binary_crossentropy(y_true=self.x_train,
+        self.fcn.compile(optimizer=optimizer, loss=[myLoss, losses.binary_crossentropy
+                                                    ])  # ,metrics='accuracy')#experimental_run_tf_function=False
+        self.pred_nn.compile(optimizer=optimizer, loss='binary_crossentropy')
+        # self.fcn.compile(optimizer=optimizer, loss=[losses.binary_crossentropy(y_true=self.x_train,
         #                                                  y_pred=self.autoencoder.get_layer('ae_output').output),losses.binary_crossentropy(y_true=self.y_train,y_pred=self.output[0])])#experimental_run_tf_function=False
-        #self.fcn.compile(optimizer=optimizer, loss=self.reconstruct_and_predict_loss)
+        # self.fcn.compile(optimizer=optimizer, loss=self.reconstruct_and_predict_loss)
         self.compiled = True
 
     def fit(self, exprs=None, classes=None, model_dir=None, model_name='my_rlvae'):
@@ -527,12 +554,65 @@ class MeiNN:
         # training
         # fcn.fit(embedding, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
         '''
-        self.fcn.fit(self.x_train, [self.x_train,self.y_train], epochs=self.NN_epoch_from_main, batch_size=79, shuffle=True)
+        import matplotlib.pyplot as plt
+        import keras
+        class LossHistory(keras.callbacks.Callback):  # ,path="",date="",code="",data_type='origin'):
+            def __init__(self, path, date, code, model_type='AE', data_type='origin'):
+                self.path = path
+                self.date = date
+                self.code = code
+                self.model_type = model_type
+                self.data_type = data_type
+
+            def on_train_begin(self, logs={}):
+                self.losses = {'batch': [], 'epoch': []}
+                self.accuracy = {'batch': [], 'epoch': []}
+                self.val_loss = {'batch': [], 'epoch': []}
+                self.val_acc = {'batch': [], 'epoch': []}
+
+            def on_batch_end(self, batch, logs={}):
+                self.losses['batch'].append(logs.get('loss'))
+                self.accuracy['batch'].append(logs.get('acc'))
+                self.val_loss['batch'].append(logs.get('val_loss'))
+                self.val_acc['batch'].append(logs.get('val_acc'))
+
+            def on_epoch_end(self, batch, logs={}):
+                self.losses['epoch'].append(logs.get('loss'))
+                self.accuracy['epoch'].append(logs.get('acc'))
+                self.val_loss['epoch'].append(logs.get('val_loss'))
+                self.val_acc['epoch'].append(logs.get('val_acc'))
+
+            def loss_plot(self, loss_type):
+                iters = range(len(self.losses[loss_type]))
+                fig = plt.figure()
+                # acc
+                plt.plot(iters, self.accuracy[loss_type], 'r', label='train acc')
+                # loss
+                plt.plot(iters, self.losses[loss_type], 'g', label='train loss')
+                if loss_type == 'epoch':
+                    # val_acc
+                    plt.plot(iters, self.val_acc[loss_type], 'b', label='val acc')
+                    # val_loss
+                    plt.plot(iters, self.val_loss[loss_type], 'k', label='val loss')
+                plt.grid(True)
+                plt.xlabel(loss_type)
+                plt.ylabel('acc-loss')
+                plt.legend(loc="upper right")
+                # plt.show()
+                fig.savefig(
+                    self.path + self.date + "_" + self.code + "_gene_level" + "(" + self.data_type + '_' + self.model_type + "_loss_epoch).png")
+
+        history = LossHistory(self.path, self.date, self.code)
+        self.fcn.fit(self.x_train, [self.x_train, self.y_train], epochs=self.NN_epoch_from_main, batch_size=79,
+                     shuffle=True, callbacks=[history])
         print("FCN finish_fitting")
+        history.loss_plot('epoch')
+
         self.fcn.save(self.path + self.date + 'FCN.h5')
         print("FCN finish saving model")
 
-        embedding = self.input_to_encoding_model.predict(self.x_train)  # input_to_encoding_model.predict(gene_data_train.T)
+        embedding = self.input_to_encoding_model.predict(
+            self.x_train)  # input_to_encoding_model.predict(gene_data_train.T)
         embedding_df = pd.DataFrame(embedding)
         embedding_df.to_csv(
             self.path + self.date + "_" + self.code + "_gene_level" + "(" + self.data_type + '_' + self.model_type + "_embedding_trained).txt",
@@ -542,18 +622,17 @@ class MeiNN:
         print(embedding)
         print(embedding.shape)
 
-
         print("****************InMeiNN*****************************************")
-        print("count_gene=%d" % len(self.gene_to_residue_info.gene_to_id_map))
+        print("count_gene=%d" % len(self.gene_to_residue_or_pathway_info.gene_to_id_map))
         print("gene_to_id_map:")
-        print(self.gene_to_residue_info.gene_to_id_map)
-        print("count_residue=%d" % len(self.gene_to_residue_info.residue_to_id_map))
+        print(self.gene_to_residue_or_pathway_info.gene_to_id_map)
+        print("count_residue=%d" % len(self.gene_to_residue_or_pathway_info.residue_to_id_map))
         print("residue_to_id_map:")
-        print(self.gene_to_residue_info.residue_to_id_map)
+        print(self.gene_to_residue_or_pathway_info.residue_to_id_map)
         # print("gene_to_residue_map:")
         # print(gene_to_residue_map)
-        print("count_connection=%d" % self.gene_to_residue_info.count_connection)
-        #return history, scores
+        print("count_connection=%d" % self.gene_to_residue_or_pathway_info.count_connection)
+        # return history, scores
         return
 
     def smooth(self, exprs, classes):
@@ -610,7 +689,7 @@ class MeiNN:
                     plot_model(self.resvae_model, to_file=filename[np.where(model == 'rlvae')[0]])
                 else:
                     plot_model(self.resvae_model, to_file=filename)
-    
+
     def add_latent_labels(self, classes):
         """
         Utility function to infer the latent variable dimension labels from the class labels and add it to the model. Labels can also be added manually trough modifying the .classes variable.
@@ -653,7 +732,7 @@ class MeiNN:
             self.decoder = load_model(model_file.replace('_resvae.h5', '_decoder.json'))
         return None
 
-    def get_latent_space(self, exprs: np.ndarray, classes: np.ndarray, cluster_index = None):
+    def get_latent_space(self, exprs: np.ndarray, classes: np.ndarray, cluster_index=None):
         """
         Utility function to return the activation of the latent space, given an input.
 
@@ -713,11 +792,11 @@ class MeiNN:
         :return: Neuron-to-gene mappings for a decoder layer (pd.DataFrame)
         """
         result = None
-        weight_matrix_ind = np.argwhere(np.asarray([np.ndim(x) for x in self.decoder.get_weights()])==2).flatten()
+        weight_matrix_ind = np.argwhere(np.asarray([np.ndim(x) for x in self.decoder.get_weights()]) == 2).flatten()
         init = initial_layer
         num_weights = len(weight_matrix_ind)
         result = self.decoder.get_weights()[weight_matrix_ind[init]]
-        for layer in range(init+1, num_weights, 1):
+        for layer in range(init + 1, num_weights, 1):
             result = np.matmul(result, self.decoder.get_weights()[weight_matrix_ind[layer]])
         if normalized:
             result = (result - result.mean(axis=0)) / result.std(axis=0)
@@ -787,13 +866,13 @@ class MeiNN:
         :param infile: Path to the .json file
         :return: None
         """
-        assert(os.path.isfile(infile)), print('File does not exist')
+        assert (os.path.isfile(infile)), print('File does not exist')
         with open(infile) as handle:
             dictionary = json.loads(handle.read())
         self.config = dictionary
         return None
 
-    def save_model_new(self, model_dir: str, model_name: str ='my_model'):
+    def save_model_new(self, model_dir: str, model_name: str = 'my_model'):
         """
         Utility function to save model weights and configurations.
 
@@ -893,7 +972,7 @@ class MeiNN:
         return ch_real, ch_permute
 
     def calc_fpc(self, normalized: bool = True, target='genes', source='latent',
-                      direction=True, index_source=1, index_target=1, use_negative=False):
+                 direction=True, index_source=1, index_target=1, use_negative=False):
         """
         Function to calculate the fuzzy partition coefficient on the different weight matrices.
 
@@ -951,7 +1030,7 @@ class MeiNN:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', '-c', help='Path to the configuration file', type=str)
-    parser.add_argument('--exprs', '-x',  help='Path to the expression matrix', type=str)
+    parser.add_argument('--exprs', '-x', help='Path to the expression matrix', type=str)
     parser.add_argument('--classes', '-y', help='Path to the class file', type=str)
     parser.add_argument('--model_dir', '-d', help='Path to model output directory', type=str)
     parser.add_argument('--model_name', '-n', help='Model base name', type=str)
@@ -982,7 +1061,7 @@ def main():
         raise
     print('Initializing model...')
     try:
-        my_resvae = MeiNN(args.model_dir,args.config)
+        my_resvae = MeiNN(args.model_dir, args.config)
         my_resvae.compile()
         my_resvae.genes = genes
     except:
@@ -1020,7 +1099,7 @@ def main():
         if len(my_resvae.config['DECODER_SHAPE']) > 1:
             weights_neurons_2.to_csv(os.path.join(args.model_dir, str(args.model_name + '_weights_neurons_2.csv')))
             weights_classes_neurons_2.to_csv(os.path.join(args.model_dir,
-                                                        str(args.model_name + '_weights_classes_neurons_2.csv')))
+                                                          str(args.model_name + '_weights_classes_neurons_2.csv')))
     except:
         print('Unexpected error when saving weights:', sys.exc_info()[0])
         raise

@@ -35,7 +35,7 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 1000
+num_of_selected_residue = 2000
 selectNumPathwayMode = 'equal_difference'#'=num_gene'
 # =num_gene: equal number of gene selected
 # 'equal_difference' make pathway-gene-residue an arithmetic sequence
@@ -45,21 +45,23 @@ isMultiDataset=True
 multiDatasetMode='softmax'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList =["diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+datasetNameList =['diabetes1','IBD','MS','Psoriasis','RA','SLE']#"diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
-AE_epoch = 100*len(datasetNameList)
+AE_epoch = 1000*len(datasetNameList)
 NN_epoch = 100*len(datasetNameList)
+separatelyTrainAE_NN=False
+toAddSkipConnection=False
 ae = None
 fcn = None
 myMeiNN = None
 
-code=''
+code = ''
 for i in datasetNameList:
     code += (i+' ') # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000,2000,2000]
 h_dim = 60*len(datasetNameList)
-date = '5-24-test-gene_path%s-h_dim%d-epoch%d-geneSite=%s,genePath=%s-mode-%s-selected%d-lossMode-%s' % (
-    (len(datasetNameList)>1),h_dim, AE_epoch, toAddGeneSite,toAddGenePathway,selectNumResidueMode, num_of_selected_residue,lossMode)
+date = '5-26-%s-AEep%d-NNep%d-gSite=%s,gPath=%s-res%d-lMode-%s-sep-%s' % (
+    (len(datasetNameList)>1), AE_epoch, NN_epoch,toAddGeneSite,toAddGenePathway, num_of_selected_residue,lossMode,separatelyTrainAE_NN)
 keras = True
 path = r"./result/"
 selected_residue_name_list=set()
@@ -288,6 +290,10 @@ if True or isTrain:
 
             if i == 0:
                 multi_train_data_and_label_df=train_data_and_label_df
+                multi_train_data_and_label_df.to_csv(
+                    path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(
+                        i) + "-th multi_train_data_and_label_df).txt",
+                    sep='\t')
             else:
                 print("last_full_df.loc[list(intersection_of_residue)]")
                 indexset=set(last_full_df.index.values.tolist())
@@ -322,6 +328,7 @@ if True or isTrain:
                 multi_train_data_and_label_df.to_csv(
                     path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(i)+"-th multi_train_data_and_label_df).txt",
                     sep='\t')
+
 
         multi_train_data_and_label_df = multi_train_data_and_label_df.sort_index(ascending=True)
         multi_train_data_and_label_df=multi_train_data_and_label_df.fillna(0.0)
@@ -372,7 +379,8 @@ if isTrain:
                                              num_of_selected_residue=num_of_selected_residue,
                                              lossMode=lossMode,selectNumPathwayMode=selectNumPathwayMode,
                                              num_of_selected_pathway=num_of_selected_pathway,
-                                             AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch)
+                                             AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch,
+                                             separatelyTrainAE_NN=separatelyTrainAE_NN)
             myMeiNN.fcn.summary()
             myMeiNN.autoencoder.summary()
         elif (toTrainMeiNN == False):
@@ -405,7 +413,8 @@ if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndChe
 
     predict(path, date, code, test_data, test_label, platform,
             date + "_" + code + "_" + model_type + "_" + data_type + dataset_type + "_model.pickle", model_type,
-            data_type, model, predict_model_type, residue_name_list,datasetNameList=multi_train_data_and_label_df )
+            data_type, model, predict_model_type, residue_name_list,datasetNameList=multi_train_data_and_label_df,
+            separatelyTrainAE_NN=separatelyTrainAE_NN)
 elif isPredict and (not just_check_data) and (onlyGetPredictionFromLocalAndCheckAccuracy):
     data_test_pred = pd.read_csv(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt",

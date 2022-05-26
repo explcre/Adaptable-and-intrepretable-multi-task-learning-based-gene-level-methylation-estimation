@@ -40,7 +40,7 @@ def cube_data(data):
 
 
 def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type,residue_name_list=[],
-            datasetNameList=[]
+            datasetNameList=[],separatelyTrainAE_NN=True
             ):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
@@ -175,49 +175,83 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
             def myLoss(y_true, y_pred):
                 return losses.binary_crossentropy(y_true, y_pred)
 
+
             #loaded_autoencoder = load_model(path+date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
-            loaded_fcn = load_model(path+date + 'FCN.h5',custom_objects={'relu_advanced':relu_advanced,'myLoss':myLoss})
             gene_data_test = np.array(gene_data_test)
-            #hidden_size = 15
-            print("gene_data_test.shape")
-            print(gene_data_test.shape)
-            '''
-            model_ae=torch.load(date+'_auto-encoder.pth')
-            model_nn = torch.load(date+'_fully-connected-network.pth')  # load network from parameters saved in network.pth @ 22-2-18
-            gene_data_test = torch.from_numpy(gene_data_test)
-            gene_data_test = AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
-            gene_data_test = gene_data_test.float()
-            embedding = model_ae.code(gene_data_test.T)
-            '''
 
-            input_to_encoding_model = Model(inputs=loaded_fcn.input,
+            if separatelyTrainAE_NN:
+                autoencoder = load_model(path + date + 'AE.h5',
+                                        custom_objects={'relu_advanced': relu_advanced,'explainableAELoss':myLoss})
+                embedding2pred_nn = load_model(path + date + 'embedding2pred_nn.h5',
+                                         custom_objects={'relu_advanced': relu_advanced,'explainableAELoss':myLoss})
+                input_to_encoding_model = Model(inputs=autoencoder.input,
+                                                outputs=autoencoder.get_layer('input_to_encoding').output)
+                ae_out = autoencoder.predict(gene_data_test.T)
+                embedding=input_to_encoding_model.predict(gene_data_test.T)
+                pred_out= embedding2pred_nn.predict(embedding)
+
+            else:
+                loaded_fcn = load_model(path+date + 'MeiNN.h5',custom_objects={'relu_advanced':relu_advanced,'myLoss':myLoss})
+
+                #hidden_size = 15
+                print("gene_data_test.shape")
+                print(gene_data_test.shape)
+                '''
+                model_ae=torch.load(date+'_auto-encoder.pth')
+                model_nn = torch.load(date+'_fully-connected-network.pth')  # load network from parameters saved in network.pth @ 22-2-18
+                gene_data_test = torch.from_numpy(gene_data_test)
+                gene_data_test = AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
+                gene_data_test = gene_data_test.float()
+                embedding = model_ae.code(gene_data_test.T)
+                '''
+
+                input_to_encoding_model = Model(inputs=loaded_fcn.input,
                                        outputs=loaded_fcn.get_layer('input_to_encoding').output)
-            # embedding=ae.code(torch.tensor(gene_data_train.T).float())
-            embedding = input_to_encoding_model.predict(gene_data_test.T)
+                # embedding=ae.code(torch.tensor(gene_data_train.T).float())
+                embedding = input_to_encoding_model.predict(gene_data_test.T)
 
-            fcn_predict_model = Model(inputs=loaded_fcn.input,
+                fcn_predict_model = Model(inputs=loaded_fcn.input,
                                             outputs=loaded_fcn.get_layer('prediction').output)
+
+
+                [ae_out,pred_out] = loaded_fcn.predict(gene_data_test.T)
+
+
+                # 模型评估
+                score = loaded_fcn.evaluate(gene_data_test.T, [gene_data_test.T,Y_test.T], verbose=0)
+                print("FCN score")
+                print(score)
+                print('FCN Test score:', score[0])
+                print('FCN Test accuracy:', score[1])
+
+                fcn_predict_model.compile(optimizer='Adam',loss='binary_crossentropy')
+                score_pred = fcn_predict_model.evaluate(gene_data_test.T, Y_test.T, verbose=0)
+                print("prediction score")
+                print(score_pred)
 
             print("predicting:after ae, embedding is ")
             print(embedding)
             print(embedding.shape)
-            [ae_out,pred_out] = loaded_fcn.predict(gene_data_test.T)
             print("ae_out is")
             print(ae_out)
             print("prediction is")
             print(pred_out)
+            data_test_pred = pred_out
+            data_test_pred = pd.DataFrame(np.array(data_test_pred))
+            data_test_pred.to_csv(
+                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN="+
+                str(separatelyTrainAE_NN)+"pred).txt", sep='\t')
+            data_test_ae_out = pd.DataFrame(np.array(ae_out))
+            data_test_ae_out.to_csv(
+                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
+                sep='\t')
+            '''
+            normalized_data_test_pred = pd.DataFrame(np.array(normalized_data_test_pred))
+            normalized_data_test_pred.to_csv(
+                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "normalized_pred).txt",
+                sep='\t')
+            '''
 
-            # 模型评估
-            score = loaded_fcn.evaluate(gene_data_test.T, [gene_data_test.T,Y_test.T], verbose=0)
-            print("FCN score")
-            print(score)
-            print('FCN Test score:', score[0])
-            print('FCN Test accuracy:', score[1])
-
-            fcn_predict_model.compile(optimizer='Adam',loss='binary_crossentropy')
-            score_pred = fcn_predict_model.evaluate(gene_data_test.T, Y_test.T, verbose=0)
-            print("prediction score")
-            print(score_pred)
             #print('prediction Test score:', score_pred[0])
             #print('prediction Test accuracy:', score_pred[1])
             normalized_pred_out = [[0]*len(datasetNameList) for i in range(len(pred_out))]
@@ -261,15 +295,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                 data_test_pred = np.vstack([data_test_pred, pred2.T])'''
             print('finish!')
 
-    data_test_pred = pd.DataFrame(np.array(data_test_pred))
-    data_test_pred.to_csv(path+date+"_"+code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt", sep='\t')
-    data_test_ae_out = pd.DataFrame(np.array(ae_out))
-    data_test_ae_out.to_csv(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
-                          sep='\t')
 
-    normalized_data_test_pred = pd.DataFrame(np.array( normalized_data_test_pred))
-    normalized_data_test_pred.to_csv(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "normalized_pred).txt",
-                          sep='\t')
 
     print("Predicting finish!")
 

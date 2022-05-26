@@ -77,7 +77,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='softmax',datasetNameList=[],
         num_of_selected_residue=1000,lossMode='reg_mean',selectNumPathwayMode = '=num_gene',
         num_of_selected_pathway = 500,
-        AE_epoch_from_main=1000, NN_epoch_from_main=1000, gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000, separatelyTrainAE_NN=True,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt"):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
@@ -373,7 +373,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                                            count_connection, gene_to_residue_map_reversed,gene_pathway_needed,gene_pathway_needed_reversed)
             myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
-                            NN_epoch_from_main=NN_epoch_from_main, model_dir='./results/models',
+                            NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
                             gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
                             toAddGenePathway=toAddGenePathway,
                             multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)

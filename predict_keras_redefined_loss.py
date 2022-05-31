@@ -40,7 +40,7 @@ def cube_data(data):
 
 
 def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,model,predict_model_type,residue_name_list=[],
-            datasetNameList=[],separatelyTrainAE_NN=True
+            datasetNameList=[],separatelyTrainAE_NN=False,multiDatasetMode="multi-task"
             ):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
@@ -178,7 +178,11 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
 
             #loaded_autoencoder = load_model(path+date + 'AE.h5',custom_objects={'variable_l1': variable_l1,'relu_advanced':relu_advanced})
             gene_data_test = np.array(gene_data_test)
-
+            ae_out=None
+            print("separatelyTrainAE_NN=")
+            print(separatelyTrainAE_NN)
+            print("multiDatasetMode=")
+            print(multiDatasetMode)
             if separatelyTrainAE_NN:
                 autoencoder = load_model(path + date + 'AE.h5',
                                         custom_objects={'relu_advanced': relu_advanced,'explainableAELoss':myLoss})
@@ -191,60 +195,150 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                 pred_out= embedding2pred_nn.predict(embedding)
 
             else:
-                loaded_fcn = load_model(path+date + 'MeiNN.h5',custom_objects={'relu_advanced':relu_advanced,'myLoss':myLoss})
+                if multiDatasetMode=="multi-task":
+                    print("DEBUG INFO: in the multi-task")
+                    loaded_fcn_multitask = load_model(path + date + 'multi-task-MeiNN.h5',
+                                            custom_objects={'relu_advanced': relu_advanced, 'myLoss': myLoss})
+                    print(loaded_fcn_multitask.summary())
+                    print("datasetname list length: %d"%len(datasetNameList))
+                    print(datasetNameList)
+                    print("gene_data_test.shape")
+                    print(gene_data_test.shape)
 
-                #hidden_size = 15
-                print("gene_data_test.shape")
-                print(gene_data_test.shape)
-                '''
-                model_ae=torch.load(date+'_auto-encoder.pth')
-                model_nn = torch.load(date+'_fully-connected-network.pth')  # load network from parameters saved in network.pth @ 22-2-18
-                gene_data_test = torch.from_numpy(gene_data_test)
-                gene_data_test = AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
-                gene_data_test = gene_data_test.float()
-                embedding = model_ae.code(gene_data_test.T)
-                '''
+                    input_to_encoding_model = Model(inputs=loaded_fcn_multitask.input,
+                                                    outputs=loaded_fcn_multitask.get_layer('input_to_encoding').output)
+                    # embedding=ae.code(torch.tensor(gene_data_train.T).float())
+                    embedding = input_to_encoding_model.predict(gene_data_test.T)
 
-                input_to_encoding_model = Model(inputs=loaded_fcn.input,
+                    #fcn_predict_model = Model(inputs=loaded_fcn_multitask.input,
+                    #                          outputs=loaded_fcn_multitask.get_layer('prediction').output)
+                    data_test_pred=None
+                    if len(datasetNameList) > 1:
+                        [ae_out, pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6] = loaded_fcn_multitask.predict(gene_data_test.T)
+                        print("ae_out is")
+                        print(ae_out)
+                        print("prediction%d is" % 1)
+                        print(pred_out1)
+                        print("prediction%d is" % 2)
+                        print(pred_out2)
+                        print("prediction%d is" % 3)
+                        print(pred_out3)
+                        print("prediction%d is" % 4)
+                        print(pred_out4)
+                        print("prediction%d is" % 5)
+                        print(pred_out5)
+                        print("prediction%d is" % 6)
+                        print(pred_out6)
+
+                        # data_test_pred = [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6]
+                        # data_test_pred = pred_out
+                        data_test_pred = pd.DataFrame(np.array(pred_out1))
+                        data_test_pred.to_csv(
+                            path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                            str(separatelyTrainAE_NN) + "pred1).txt", sep='\t')
+                        data_test_pred = pd.DataFrame(np.array(pred_out2))
+                        data_test_pred.to_csv(
+                            path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                            str(separatelyTrainAE_NN) + "pred2).txt", sep='\t')
+                        data_test_pred = pd.DataFrame(np.array(pred_out3))
+                        data_test_pred.to_csv(
+                            path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                            str(separatelyTrainAE_NN) + "pred3).txt", sep='\t')
+                        data_test_pred = pd.DataFrame(np.array(pred_out4))
+                        data_test_pred.to_csv(
+                            path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                            str(separatelyTrainAE_NN) + "pred4).txt", sep='\t')
+                        data_test_pred = pd.DataFrame(np.array(pred_out5))
+                        data_test_pred.to_csv(
+                            path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                            str(separatelyTrainAE_NN) + "pred5).txt", sep='\t')
+                        data_test_pred = pd.DataFrame(np.array(pred_out6))
+                        data_test_pred.to_csv(
+                            path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                            str(separatelyTrainAE_NN) + "pred6).txt", sep='\t')
+                        data_test_ae_out = pd.DataFrame(np.array(ae_out))
+                        data_test_ae_out.to_csv(
+                        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
+                        sep='\t')
+                else:
+                    loaded_fcn = load_model(path+date + 'MeiNN.h5',custom_objects={'relu_advanced':relu_advanced,'myLoss':myLoss})
+
+                    #hidden_size = 15
+                    print("gene_data_test.shape")
+                    print(gene_data_test.shape)
+
+                    input_to_encoding_model = Model(inputs=loaded_fcn.input,
                                        outputs=loaded_fcn.get_layer('input_to_encoding').output)
-                # embedding=ae.code(torch.tensor(gene_data_train.T).float())
-                embedding = input_to_encoding_model.predict(gene_data_test.T)
+                    # embedding=ae.code(torch.tensor(gene_data_train.T).float())
+                    embedding = input_to_encoding_model.predict(gene_data_test.T)
 
-                fcn_predict_model = Model(inputs=loaded_fcn.input,
+                    fcn_predict_model = Model(inputs=loaded_fcn.input,
                                             outputs=loaded_fcn.get_layer('prediction').output)
 
+                    [ae_out,pred_out] = loaded_fcn.predict(gene_data_test.T)
+                    # evaluate the model
+                    score = loaded_fcn.evaluate(gene_data_test.T, [gene_data_test.T,Y_test.T], verbose=0)
+                    print("FCN score")
+                    print(score)
+                    print('FCN Test score:', score[0])
+                    print('FCN Test accuracy:', score[1])
 
-                [ae_out,pred_out] = loaded_fcn.predict(gene_data_test.T)
+                    fcn_predict_model.compile(optimizer='Adam',loss='binary_crossentropy')
+                    score_pred = fcn_predict_model.evaluate(gene_data_test.T, Y_test.T, verbose=0)
+                    print("prediction score")
+                    print(score_pred)
+                    print("ae_out is")
+                    print(ae_out)
+                    print("prediction is")
+                    print(pred_out)
+                    # data_test_pred = pred_out
+                    data_test_pred = pd.DataFrame(np.array(data_test_pred))
+                    data_test_pred.to_csv(
+                        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                        str(separatelyTrainAE_NN) + "pred).txt", sep='\t')
+                    data_test_ae_out = pd.DataFrame(np.array(ae_out))
+                    data_test_ae_out.to_csv(
+                        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
+                        sep='\t')
+                    # print('prediction Test score:', score_pred[0])
+                    # print('prediction Test accuracy:', score_pred[1])
+                    normalized_pred_out = [[0] * len(datasetNameList) for i in range(len(pred_out))]
+                    num_wrong_pred = 0
+                    if len(datasetNameList) > 1:
+                        for i, item in enumerate(pred_out):
+                            for i_dataset, datasetName in enumerate(datasetNameList):
+                                if item[i_dataset] >= 0.5:
+                                    normalized_pred_out[i_dataset][i] = 1
+                                    num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                                elif item[i_dataset] < 0.5:
+                                    normalized_pred_out[i_dataset][i] = 0
+                                    num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+                    elif len(datasetNameList) == 1:
+                        for i, item in enumerate(pred_out):
+                            if item >= 0.5:
+                                normalized_pred_out.append(1)
+                                num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                            elif item < 0.5:
+                                normalized_pred_out.append(0)
+                                num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
 
+                    print("normalized pred_out=")
+                    print(normalized_pred_out)
+                    print("test label is")
+                    print(Y_test)
+                    print("num_wrong_pred=%d, total test num=%d,accuracy=%f" % (
+                    num_wrong_pred, len(Y_test), 1.0 - num_wrong_pred / len(Y_test)))
 
-                # 模型评估
-                score = loaded_fcn.evaluate(gene_data_test.T, [gene_data_test.T,Y_test.T], verbose=0)
-                print("FCN score")
-                print(score)
-                print('FCN Test score:', score[0])
-                print('FCN Test accuracy:', score[1])
-
-                fcn_predict_model.compile(optimizer='Adam',loss='binary_crossentropy')
-                score_pred = fcn_predict_model.evaluate(gene_data_test.T, Y_test.T, verbose=0)
-                print("prediction score")
-                print(score_pred)
+                    # out = out.view(out.size(0), -1)
+                    data_test_pred = pred_out  # .numpy()
+                    normalized_data_test_pred = normalized_pred_out
 
             print("predicting:after ae, embedding is ")
             print(embedding)
             print(embedding.shape)
-            print("ae_out is")
-            print(ae_out)
-            print("prediction is")
-            print(pred_out)
-            data_test_pred = pred_out
-            data_test_pred = pd.DataFrame(np.array(data_test_pred))
-            data_test_pred.to_csv(
-                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN="+
-                str(separatelyTrainAE_NN)+"pred).txt", sep='\t')
-            data_test_ae_out = pd.DataFrame(np.array(ae_out))
-            data_test_ae_out.to_csv(
-                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
-                sep='\t')
+
+
+
             '''
             normalized_data_test_pred = pd.DataFrame(np.array(normalized_data_test_pred))
             normalized_data_test_pred.to_csv(
@@ -252,37 +346,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                 sep='\t')
             '''
 
-            #print('prediction Test score:', score_pred[0])
-            #print('prediction Test accuracy:', score_pred[1])
-            normalized_pred_out = [[0]*len(datasetNameList) for i in range(len(pred_out))]
-            num_wrong_pred = 0
-            if len(datasetNameList) > 1:
-                for i,item in enumerate(pred_out):
-                    for i_dataset, datasetName in enumerate(datasetNameList):
-                        if item[i_dataset] >= 0.5:
-                            normalized_pred_out[i_dataset][i]=1
-                            num_wrong_pred += round(abs(Y_test.iloc[i]-1.0))
-                        elif item[i_dataset] < 0.5:
-                            normalized_pred_out[i_dataset][i]=0
-                            num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
-            elif len(datasetNameList) == 1:
-                for i,item in enumerate(pred_out):
-                    if item >= 0.5:
-                        normalized_pred_out.append(1)
-                        num_wrong_pred += round(abs(Y_test.iloc[i]-1.0))
-                    elif item < 0.5:
-                        normalized_pred_out.append(0)
-                        num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
 
-            print("normalized pred_out=")
-            print(normalized_pred_out)
-            print("test label is")
-            print(Y_test)
-            print("num_wrong_pred=%d, total test num=%d,accuracy=%f"%(num_wrong_pred,len(Y_test),1.0-num_wrong_pred/len(Y_test)))
-
-            #out = out.view(out.size(0), -1)
-            data_test_pred = pred_out#.numpy()
-            normalized_data_test_pred = normalized_pred_out
             #print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
 
             '''if count == 1:

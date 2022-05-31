@@ -74,7 +74,7 @@ def cube_data(data):
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='softmax',datasetNameList=[],
+        toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='multi-task',datasetNameList=[],
         num_of_selected_residue=1000,lossMode='reg_mean',selectNumPathwayMode = '=num_gene',
         num_of_selected_pathway = 500,
         AE_epoch_from_main=1000, NN_epoch_from_main=1000, separatelyTrainAE_NN=True,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",

@@ -373,7 +373,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                                     toAddGenePathway=toAddGenePathway,
                                     multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
                         #torch.load(date + '.pth')
-                        model_ae.load_state_dict(torch.load(path+date + '.pth'), strict=False)
+                        model_ae.load_state_dict(torch.load(path+date + '.tar'), strict=False)
                         # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
                         '''
                         model_nn = torch.load(

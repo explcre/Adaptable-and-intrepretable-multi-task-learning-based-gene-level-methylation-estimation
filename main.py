@@ -3,9 +3,18 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-
 from train_keras_redefined_loss import run
 from predict_keras_redefined_loss import predict
+
+framework='pytorch'
+'''
+if framework=='keras':
+    from train_keras_redefined_loss import run
+    from predict_keras_redefined_loss import predict
+elif framework=='pytorch':
+    from train_pytorch import run
+    from predict_pytorch import predict
+'''
 # from test import select_feature
 import torch
 
@@ -36,18 +45,17 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 200
+num_of_selected_residue = 25
 selectNumPathwayMode = 'equal_difference'  # '=num_gene'
 # =num_gene: equal number of gene selected
 # 'equal_difference' make pathway-gene-residue an arithmetic sequence
 # num : give a value
 num_of_selected_pathway = num_of_selected_residue / 2
 isMultiDataset = True
-multiDatasetMode = 'multi-task'
+multiDatasetMode = 'softmax'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
-                   'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+datasetNameList = ['diabetes1', 'IBD']#, 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
 AE_epoch = 100  # *len(datasetNameList)
 NN_epoch = 100  # *len(datasetNameList)
@@ -62,9 +70,9 @@ for i in datasetNameList:
     code += (i + ' ')  # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000, 2000, 2000]
 h_dim = 60 * len(datasetNameList)
-date = '5-31%s-AEep%d-NNep%d-gSite=%s,gPath=%s-res%d-lMode-%s-sep-%s-multi-t=%s' % (
+date = '7-8%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-multi%s-pMod%s' % (
     (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue, lossMode,
-    separatelyTrainAE_NN, multiDatasetMode)
+    separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode)
 keras = True
 path = r"./result/"
 selected_residue_name_list = set()
@@ -228,18 +236,39 @@ def print_model_summary_pytorch():
         file.write(str(parameters))
     print('###############################################################')
 '''
-'''
-from keras import backend as K, losses
-from keras.models import load_model
-def relu_advanced(x):
-    return K.relu(x, threshold=0)
-def myLoss(y_true, y_pred):
-    return losses.binary_crossentropy(y_true, y_pred)
-loaded_fcn_multitask=load_model("./result/5-31v-True-AEep100-NNep100-gSite=True,gPath=True-res20-lMode-reg_mean-sep-False-multi-t=multi-taskmulti-task-MeiNN.h5"
+toCheckHeatMap=False
+if toCheckHeatMap:
+    from keras import backend as K, losses
+    from keras.models import load_model
+    def relu_advanced(x):
+        return K.relu(x, threshold=0)
+    def myLoss(y_true, y_pred):
+        return losses.binary_crossentropy(y_true, y_pred)
+    loaded_fcn_multitask=load_model(path + date + 'multi-task-MeiNN.h5'
                                             ,custom_objects={'relu_advanced': relu_advanced, 'myLoss': myLoss})
-print("loaded_fcn_multitask")
-print(loaded_fcn_multitask.summary())
-'''
+    print("loaded_fcn_multitask")
+    print(loaded_fcn_multitask.summary())
+    import seaborn as sns
+    import matplotlib.pylab as plt
+    plt.figure(figsize=(10,10))
+    weight=loaded_fcn_multitask.get_weights()
+    layer_gene_pathway=12
+    heat_map_gene_pathway = sns.heatmap( weight[layer_gene_pathway], linewidth = 1 , annot = False)
+    plt.title(path + date + 'multi-task-MeiNN gene-pathway HeatMap' )
+    plt.savefig(path + date + 'multi-task-MeiNN_gene_pathway_heatmap.png')
+    plt.show()
+
+    heat_map_gene_pathway_clustered = sns.clustermap( weight[layer_gene_pathway],row_cluster=True,standard_scale=1)
+    plt.title(path + date + 'multi-task-MeiNN gene-pathway row-clustered cluster Map' )
+    plt.savefig(path + date + 'multi-task-MeiNN_gene_pathway_row-clustered_cluster_map.png')
+    plt.show()
+
+    layer_gene_site=15
+    heat_map_gene_site = sns.heatmap( list(weight[layer_gene_site]), linewidth = 1 , annot = False)
+    plt.title(path + date + 'multi-task-MeiNN gene-site HeatMap' )
+    plt.savefig(path + date + 'multi-task-MeiNN_gene_site_heatmap.png')
+    plt.show()
+
 # train
 if True or isTrain:
     # train_data = pd.read_excel(train_dataset_filename,skiprows=30)#, index_col=0,names=['0','1']#,delimiter='!|\t'
@@ -294,15 +323,12 @@ if True or isTrain:
     elif isSelfCollectedDataset and isMultiDataset:
         import os
 
-        if False and os.path.exists(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(
-                len(datasetNameList) - 1) + "-th multi_train_data_and_label_df).txt"):
+        if False and os.path.exists(path + date + "_" + code + str(len(datasetNameList)) + "-th multi_df).txt",):
             multi_train_data_and_label_df = pd.read_csv(
-                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(
-                    i) + "-th multi_train_data_and_label_df).txt",
+                        path + date + "_" + code + str(len(datasetNameList)) + "-th multi_df).txt",
                 sep='\t')
             print(
-                "we finish reading " + path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(
-                    i) + "-th multi_train_data_and_label_df).txt")
+                "we finish reading " + path + date + "_" + code + str(len(datasetNameList)) + "-th multi_df).txt")
         else:
             for i, dataset_name in enumerate(datasetNameList):
                 if i > 0:
@@ -333,8 +359,8 @@ if True or isTrain:
                 if i == 0:
                     multi_train_data_and_label_df = train_data_and_label_df
                     multi_train_data_and_label_df.to_csv(
-                        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(
-                            i) + "-th multi_train_data_and_label_df).txt",
+                        path + date + "_" + code + str(
+                            i) + "-th multi_df).txt",
                         sep='\t')
                 else:
                     print("last_full_df.loc[list(intersection_of_residue)]")
@@ -374,12 +400,17 @@ if True or isTrain:
                     print("%d-th %s multi preprocessed train data:" % (i, dataset_name))
                     print(multi_train_data_and_label_df)
                     multi_train_data_and_label_df.to_csv(
-                        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + str(
-                            i) + "-th multi_train_data_and_label_df).txt",
+                        path + date + "_" + code + str(
+                            i) + "-th multi_df).txt",
                         sep='\t')
 
         multi_train_data_and_label_df = multi_train_data_and_label_df.sort_index(ascending=True)
-        multi_train_data_and_label_df = multi_train_data_and_label_df.fillna(0.0)
+        print("after sort multi_train_data_and_label_df")
+        print(multi_train_data_and_label_df)
+        multi_train_data_and_label_df.iloc[:max(0, len(datasetNameList) - 1) + 1,:] = multi_train_data_and_label_df.iloc[:max(0, len(datasetNameList) - 1) + 1,:].fillna(0.5)
+        multi_train_data_and_label_df.iloc[max(1, len(datasetNameList)):,:] = multi_train_data_and_label_df.iloc[max(1, len(datasetNameList)):,:].fillna(0.0)
+        print("after sort and fill nan multi_train_data_and_label_df")
+        print(multi_train_data_and_label_df)
         train_data, test_data = train_test_split(multi_train_data_and_label_df.T, train_size=0.75, random_state=10)
 
         train_label = train_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # train_data.iloc[:,-1].T
@@ -416,7 +447,7 @@ if True or isTrain:
 
 if isTrain:
     if (not just_check_data):
-        if keras and toTrainMeiNN == True:
+        if (framework=='keras' or framework=='pytorch') and toTrainMeiNN == True:
             myMeiNN, residue_name_list = run(path, date, code, train_data, train_label, platform, model_type, data_type,
                                              h_dim,
                                              toTrainMeiNN=toTrainMeiNN, toAddGenePathway=toAddGenePathway,
@@ -426,9 +457,13 @@ if isTrain:
                                              lossMode=lossMode, selectNumPathwayMode=selectNumPathwayMode,
                                              num_of_selected_pathway=num_of_selected_pathway,
                                              AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch,
-                                             separatelyTrainAE_NN=separatelyTrainAE_NN)
-            myMeiNN.fcn.summary()
-            myMeiNN.autoencoder.summary()
+                                             separatelyTrainAE_NN=separatelyTrainAE_NN,framework=framework)
+            if framework=='keras':
+                myMeiNN.fcn.summary()
+                myMeiNN.autoencoder.summary()
+            elif framework == 'pytorch':
+                #print(myMeiNN)
+                pass
         elif (toTrainMeiNN == False):
             (ae, fcn) = run(path, date, code, train_data, train_label, platform, model_type, data_type, h_dim,
                             toTrainAE, AE_epoch, NN_epoch)
@@ -443,23 +478,33 @@ if keras:
     fcn.summary()
 '''
 residue_name_list = np.load(
-    path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_name_list)" + ".txt.npy")
+    path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt.npy")
 print("test label is")
 print(test_label)
 # test_label = pd.DataFrame(np.array(test_label)))
 test_label.T.to_csv(
-    path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "test_label).txt",
+    path + date + "_" + code + "test_label).txt",
     sep='\t')
 
 # predict
 if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndCheckAccuracy):
     # test_data = pd.read_table(test_dataset_filename, index_col=0)
     # test_label = pd.read_table(test_label_filename, index_col=0)
-
+    '''
     predict(path, date, code, test_data, test_label, platform,
             date + "_" + code + "_" + model_type + "_" + data_type + dataset_type + "_model.pickle", model_type,
             data_type, model, predict_model_type, residue_name_list, datasetNameList=multi_train_data_and_label_df,
-            separatelyTrainAE_NN=separatelyTrainAE_NN,multiDatasetMode=multiDatasetMode)
+            separatelyTrainAE_NN=separatelyTrainAE_NN,multiDatasetMode=multiDatasetMode,framework=framework)'''
+    predict(path, date, code, test_data, test_label, platform,date + "_" + code + "_" + model_type + "_" + data_type + dataset_type + "_model.pickle",
+            model_type, data_type,h_dim,toTrainMeiNN,model,predict_model_type, residue_name_list,
+            toAddGenePathway=toAddGenePathway,
+            toAddGeneSite=toAddGeneSite, multiDatasetMode=multiDatasetMode,
+            datasetNameList=datasetNameList,
+            num_of_selected_residue=num_of_selected_residue,
+            lossMode=lossMode, selectNumPathwayMode=selectNumPathwayMode,
+            num_of_selected_pathway=num_of_selected_pathway,
+            AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch,
+            separatelyTrainAE_NN=separatelyTrainAE_NN, framework=framework)
 elif isPredict and (not just_check_data) and (onlyGetPredictionFromLocalAndCheckAccuracy):
     data_test_pred = pd.read_csv(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt",

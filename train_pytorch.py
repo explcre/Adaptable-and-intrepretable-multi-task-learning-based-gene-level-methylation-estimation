@@ -19,7 +19,7 @@ from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 #import TabularAutoEncoder
-import VAE
+#import VAE
 #import tensorflow.compat.v1 as tf
 #tf.disable_v2_behavior()
 import tensorflow as tf
@@ -62,7 +62,7 @@ def run(date,code, X_train, y_train, platform, model_type, data_type,HIDDEN_DIME
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
-                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'VAE':VAE.VAE,'AE':AE.Autoencoder}
+                  'L1': Lasso, 'L2': Ridge, 'RandomForest': RandomForestRegressor,'AE':AE.Autoencoder}#,'VAE':VAE.VAE,
 
     with open(platform, 'r') as f:
         gene_dict = json.load(f)

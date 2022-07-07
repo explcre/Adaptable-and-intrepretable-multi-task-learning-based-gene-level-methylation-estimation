@@ -4,7 +4,10 @@ import re
 # import resVAE.utils as cutils
 # from resVAE.config import config
 # import resVAE.reporting as report
+import torchvision
+
 from MeiNN.MeiNN import MeiNN, gene_to_residue_or_pathway_info
+from MeiNN.MeiNN_pytorch import MeiNN_pytorch
 from MeiNN.config import config
 import os
 import json
@@ -52,6 +55,28 @@ from keras.models import load_model
 warnings.filterwarnings("ignore")
 
 
+def mkdir(path):
+    import os
+    # remove first blank space
+    path = path.strip()
+    # remove \ at the end
+    path = path.rstrip("\\")
+    # judge whether directory exists
+    # exist     True
+    # not exist   False
+    isExists = os.path.exists(path)
+    # judge the result
+    if not isExists:
+        # if not exist, then create directory
+        os.makedirs(path)
+        print(path + " directory created successfully.")
+        return True
+    else:
+        # if directory exists, don't create and print it already exists
+        print(path + " directory already exists.")
+        return False
+
+
 def origin_data(data):
     return data
 
@@ -79,7 +104,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         num_of_selected_pathway = 500,
         AE_epoch_from_main=1000, NN_epoch_from_main=1000, separatelyTrainAE_NN=True,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
-        gene_name_dir="./dataset/GO term pathway/genes.txt"):
+        gene_name_dir="./dataset/GO term pathway/genes.txt",
+        framework='keras'):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
@@ -281,6 +307,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         gene_pathway_needed_reversed=gene_pathway_needed.replace([1,0],[0,1]).values.tolist()
         print("gene_pathway_needed_reversed:")
         print(gene_pathway_needed.replace([1,0],[0,1]))
+        gene_pathway_needed.to_csv(
+            path + date + "_" + code + "_gene_level" + "gene_pathway_needed).csv", sep='\t')
+        import seaborn as sns
+        import matplotlib.pylab as plt
+        heat_map_gene_pathway = sns.heatmap( gene_pathway_needed, linewidth=1, annot=False)
+        plt.title(path + date + 'multi-task-MeiNN gene-pathway known info HeatMap')
+        plt.savefig(path + date + 'multi-task-MeiNN_gene_pathway_known_info_heatmap.png')
+        #plt.show()
     ####################################
     if toAddGenePathway and False:
         gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])
@@ -325,14 +359,15 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     # save the dictionary : following added 22-4-14
 
 
+
     np.save(
-        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_name_list)" + ".txt",
+        path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt",
         residuals_name)#added 5-12
     np.save(
-        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_id_map)" + ".txt",
+        path + date + "_" + code + "_gene_level" + "_original_gene_to_id_map)" + ".txt",
         gene_to_id_map)
     np.save(
-        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_residue_to_id_map)" + ".txt",
+        path + date + "_" + code + "_gene_level" + "_original_residue_to_id_map)" + ".txt",
         residue_to_id_map)
 
     print("len residue_to_id_map%d"% len(residue_to_id_map))
@@ -350,14 +385,19 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         count_connection += 1
 
     np.save(
-        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_to_residue_map)" + ".txt",
+        path + date + "_" + code + "_gene_level" +  "gene2residue_map)" + ".txt",
         gene_to_residue_map)
+
+    heat_map_gene_residue= sns.heatmap(gene_to_residue_map, linewidth=1, annot=False)
+    plt.title(path + date + 'multi-task-MeiNN gene-residue known info HeatMap')
+    plt.savefig(path + date + 'multi-task-MeiNN_gene_residue_known_info_heatmap.png')
+    #plt.show()
     # above added 22-4-14
     gene_data_train = np.array(gene_data_train)  # added line on 2-3
     print("gene_data_train=")
     print(gene_data_train)
     np.save(
-        path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_data_train)" + ".txt",
+        path + date + "_" + code +  "gene_data_train)" + ".txt",
         gene_data_train)
     # ae=None
     autoencoder = None
@@ -365,23 +405,158 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     if True or (model_type == "VAE" or model_type == "AE" or model_type == "MeiNN"):
         # encoding_dim = 400
         latent_dim = HIDDEN_DIMENSION
-        print("INFO:we entered MeiNN code")
+        print("DEBUG INFO:we entered MeiNN code")
         if True or toTrainMeiNN:
-            print("INFO:we entered to train MeiNN code")
-            gene_data_train=np.load(path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "_original_gene_data_train)" + ".txt.npy")
-            my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
+            if framework=='keras':
+                print("DEBUG INFO:we entered to train MeiNN keras code")
+                gene_data_train=np.load(path + date + "_" + code + "gene_data_train)" + ".txt.npy")
+                my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
                                                            count_connection, gene_to_residue_map_reversed,gene_pathway_needed,gene_pathway_needed_reversed)
-            myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
+                myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                             HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                             NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
                             gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
                             toAddGenePathway=toAddGenePathway,
                             multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
 
-            # myMeiNN.build()
-            myMeiNN.compile()
-            # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
-            myMeiNN.fit()
+                # myMeiNN.build()
+                myMeiNN.compile()
+                # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
+                myMeiNN.fit()
+            elif framework=='pytorch':
+                myMeiNN=None
+                print("DEBUG INFO:we entered to train MeiNN pytorch code")
+                gene_data_train = np.load(path + date + "_" + code + "gene_data_train)" + ".txt.npy")
+                my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map,
+                                                                          gene_to_residue_map,
+                                                                          count_connection,
+                                                                          gene_to_residue_map_reversed,
+                                                                          gene_pathway_needed,
+                                                                          gene_pathway_needed_reversed)
+                ##########added from train_pytorch.py############
+                num_epochs = AE_epoch_from_main
+                batch_size = int(gene_data_train.shape[1])  # gene_data_train.shape[0]#100#809
+                #hidden_size = 10
+                dataset = gene_data_train.T  # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
+                # dataset = gene_data_train  # dsets.MNIST(root='../data',
+
+                # train=True,
+                # transform=transforms.ToTensor(),
+                # download=True)
+                data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                          batch_size=batch_size,
+                                                          shuffle=True)
+                print("gene_data_train.shape")
+                print(gene_data_train.shape)
+                print("dataset.shape")
+                print(dataset.shape)
+
+                ae=AE.MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
+                            HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
+                            NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
+                            gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                            toAddGenePathway=toAddGenePathway,
+                            multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
+
+                #ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
+                #                    h_dim=HIDDEN_DIMENSION)  # in_dim=gene_data_train.shape[1]
+
+                if torch.cuda.is_available():
+                    ae.cuda()
+
+                criterion = nn.BCELoss()
+                optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
+                iter_per_epoch = len(data_loader)
+                data_iter = iter(data_loader)
+
+                # save fixed inputs for debugging
+                fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
+                #mydir = './data/'
+                # difine the directory to be created
+                mkpath = ".\\result\\%s"%date
+                mkdir(mkpath)
+                myfile = "t_img_bth%d.png" % (i + 1)
+                images_path = os.path.join(mkpath, myfile)
+                torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
+                fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
+                AE_loss_list = []
+                y_train_T_tensor=torch.from_numpy(y_train.T.values).float()
+                for epoch in range(num_epochs):
+                    t0 = time()
+                    for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+                        # flatten the image
+                        images = AE.to_var(images.view(images.size(0), -1))
+                        images = images.float()
+                        out,prediction,embedding = ae(images)
+                        if toPrintInfo:
+                            print("prediction")
+                            print(prediction.shape)
+                            print(prediction)
+                            print("y_train.T")
+                            print(y_train.T.shape)
+                            print(y_train.T)
+
+                        loss = criterion(out, images)+criterion(prediction,y_train_T_tensor)
+
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+                        print("loss: %f"%loss.item())
+                        #print(loss.item())
+                        AE_loss_list.append(loss.item())
+
+                        if (i + 1) % 10 == 0:
+                            print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
+                                  % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
+                                     time() - t0))  # original version: loss.item() was loss.data[0]
+
+                    if (epoch + 1) % 1 == 0:
+                        # save the reconstructed images
+                        fixed_x = fixed_x.float()
+                        reconst_images,prediction,embedding = ae(fixed_x)#prediction
+                        reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[
+                            0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
+                        #mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+                        mkpath = ".\\result\\%s" % date
+                        mkdir(mkpath)
+                        myfile = 'rcnst_img_bt%d_ep%d.png' % ( i + 1, (epoch + 1))
+                        reconst_images_path = os.path.join(mkpath, myfile)
+                        torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
+                    ##################
+                    model = model_dict[model_type]()
+                torch.save({"epoch": num_epochs,  # 一共训练的epoch
+                 "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
+                 "optimizer": optimizer.state_dict()}, path+date + '.tar')
+
+                #torch.save(ae.state_dict(), date + '.tar')  # save the whole autoencoder network
+                AE_loss_list_df = pd.DataFrame(AE_loss_list)
+                AE_loss_list_df.to_csv(path+date + "_AE_loss_list).csv",sep='\t')
+                if count == 1:
+                    with open(path+date + '_train_model_pytorch.pickle', 'wb') as f:
+                        pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+                else:
+                    with open(path+date + '_train_model_pytorch.pickle', 'ab') as f:
+                        pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
+
+
+
+
+
+                '''
+                myMeiNN = MeiNN_pytorch(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
+                                HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
+                                NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,
+                                model_dir='./results/models',
+                                gene_to_residue_or_pathway_info=my_gene_to_residue_info, toAddGeneSite=toAddGeneSite,
+                                toAddGenePathway=toAddGenePathway,
+                                multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode)
+
+                # myMeiNN.build()
+                myMeiNN.compile()
+                # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
+                myMeiNN.fit()'''
+
+
 
 
             if toAddGenePathway and False:

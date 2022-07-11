@@ -158,6 +158,136 @@ class Autoencoder(nn.Module):
         return out
 
 
+class MeiNN(nn.Module):
+    def __init__(self, config, path, date, code, X_train, y_train, platform, model_type, data_type,
+                 HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=1000, NN_epoch_from_main=1000,
+                 separatelyTrainAE_NN=True,
+                 model_dir='./saved_model/',
+                 train_dataset_filename=r"./dataset/data_train.txt", train_label_filename=r"./dataset/label_train.txt",
+                 gene_to_site_dir=r"./platform.json", gene_to_residue_or_pathway_info=None,
+                 toAddGeneSite=True, toAddGenePathway=True,
+                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean'):
+        super(MeiNN, self).__init__()
+        self.outputSet = []
+        # self.modelSet=[]
+        self.model_dir = model_dir
+        self.config = config
+        self.built = False
+        self.compiled = False
+        self.isfit = False
+        self.l_rate = 0.01 #K.variable(0.01)
+        self.genes = None
+        self.classes = None
+        self.dot_weights = 0
+        # self.gpu_count = K.tensorflow_backend._get_available_gpus()
+
+        # self.gpu_count = tf.config.list_physical_devices('GPU')
+        self.x_train = X_train  # pd.read_table(train_dataset_filename,index_col=0)
+        self.y_train = y_train  # pd.read_table(train_label_filename, index_col=0).values.ravel()
+        self.NN_epoch_from_main = NN_epoch_from_main
+        self.AE_epoch_from_main = AE_epoch_from_main
+        self.path = path
+        self.date = date
+        self.code = code
+        self.model_type = model_type
+        self.data_type = data_type
+        self.HIDDEN_DIMENSION = HIDDEN_DIMENSION
+        self.gene_to_site_dir = gene_to_site_dir
+        self.gene_to_residue_or_pathway_info = gene_to_residue_or_pathway_info
+        self.toAddGeneSite = toAddGeneSite
+        self.toAddGenePathway = toAddGenePathway
+        self.multiDatasetMode = multiDatasetMode
+        self.datasetNameList = datasetNameList
+        self.lossMode = lossMode
+        self.separatelyTrainAE_NN = separatelyTrainAE_NN
+        gene_layer_dim = len(self.gene_to_residue_or_pathway_info.gene_to_id_map)
+        residue_layer_dim = len(self.gene_to_residue_or_pathway_info.residue_to_id_map)
+
+        in_dim = residue_layer_dim  # int(809)#modified 2022-4-14
+        latent_dim = self.gene_to_residue_or_pathway_info.gene_pathway.shape[0]  # self.HIDDEN_DIMENSION
+        encoder_shape = [gene_layer_dim, residue_layer_dim, latent_dim]
+        decoder_shape = [latent_dim, gene_layer_dim]  # modified on 2022-4-14 #, residue_layer_dim]
+        input_shape = (residue_layer_dim)
+
+        mid_dim=int(math.sqrt(latent_dim * in_dim))
+        q1_dim=int(math.sqrt(latent_dim * mid_dim))
+        q3_dim=int(math.sqrt(mid_dim * in_dim))
+        self.encoder = nn.Sequential(
+            nn.Linear(in_dim, q3_dim),
+            nn.ReLU(),
+            nn.Linear(q3_dim, mid_dim),
+            nn.ReLU(),
+            nn.Linear(mid_dim, q1_dim),
+            nn.ReLU(),  # nn.Sigmoid()
+            nn.Linear(q1_dim, latent_dim),
+            nn.ReLU()#nn.Sigmoid()
+        )
+
+        # nn.Linear(q1_dim, mid_dim),
+        # nn.ReLU(),
+        # nn.Linear(mid_dim, q3_dim),
+        # nn.ReLU(),
+        self.decoder = nn.Sequential(
+            #prune.custom_from_mask(
+            #    nn.Linear(h_dim, mid_dim),name='activation', mask=torch.tensor(np.ones((mid_dim, h_dim))) #'embedding_to_pathway' #np.random.randint(0,2,(q1_dim, h_dim))
+            #),
+            nn.Linear(latent_dim, gene_layer_dim),
+            nn.ReLU(),#nn.Sigmoid()
+            nn.Linear(gene_layer_dim, residue_layer_dim),
+            #prune.custom_from_mask(
+            #    nn.Linear(mid_dim, in_dim), name='weight',
+            #    mask=torch.tensor(np.ones((in_dim, mid_dim)))#'pathway_to_gene'
+            #),
+
+            #nn.ReLU(),
+            #nn.Linear(mid_dim, q3_dim),
+            #nn.ReLU(),
+            #nn.Linear(q3_dim, in_dim),
+            nn.Sigmoid()#nn.Tanh()
+            )
+
+        in_dim = latent_dim
+        # output dimension is 1
+        out_dim = len(self.datasetNameList)
+
+        mid_dim = int(math.sqrt(in_dim * out_dim))
+        q3_dim = int(math.sqrt(in_dim * mid_dim))
+
+        q1_dim = int(math.sqrt(latent_dim * mid_dim))
+        self.FCN = nn.Sequential(
+            nn.Linear(in_dim, q3_dim),
+            nn.ReLU(),
+            nn.Linear(q3_dim, mid_dim),
+            nn.ReLU(),
+            nn.Linear(mid_dim, q1_dim),
+            nn.ReLU(),  # nn.Sigmoid()
+            # nn.Linear(q1_dim, q3_dim),
+            # nn.ReLU(),
+            nn.Linear(q1_dim, out_dim),
+            nn.Sigmoid()
+        )
+
+
+    def forward(self, x):
+        """
+        Note: image dimension conversion will be handled by external methods
+        """
+        embedding = self.encoder(x)
+        out = self.decoder(embedding)
+        pred = self.FCN(embedding)
+        if self.multiDatasetMode=='multi-task':
+            pred1= self.FCN(embedding)
+            pred2 = self.FCN(embedding)
+            pred3 = self.FCN(embedding)
+            pred4 = self.FCN(embedding)
+            pred5 = self.FCN(embedding)
+            pred6 = self.FCN(embedding)
+            return out,[pred1,pred2,pred3,pred4,pred5,pred6],embedding
+
+        return out,pred,embedding
+    def code(self,x):
+        out = self.encoder(x)
+        return out
 
 
 class NN(nn.Module):

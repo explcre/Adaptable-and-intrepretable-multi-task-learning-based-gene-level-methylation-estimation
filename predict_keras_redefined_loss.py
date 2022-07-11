@@ -313,7 +313,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         print(ae_out)
                         print("prediction is")
                         print(pred_out)
-                        # data_test_pred = pred_out
+                        data_test_pred = pred_out
                         data_test_pred = pd.DataFrame(np.array(data_test_pred))
                         data_test_pred.to_csv(
                             path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
@@ -366,14 +366,16 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         hidden_size = 15
                         print("gene_data_test.shape")
                         print(gene_data_test.shape)
-                        model_ae = AE.MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
+                        '''
+                        model_ae = AE.MeiNN(config, path, date, code, gene_data_test.T, Y_test.T, platform, model_type, data_type,
                                     HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                                     NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
                                     gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
                                     toAddGenePathway=toAddGenePathway,
                                     multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
-                        #torch.load(date + '.pth')
-                        model_ae.load_state_dict(torch.load(path+date + '.tar'), strict=False)
+                        '''
+                        model_ae=torch.load(path+date + '.pth')
+                        # model_ae.load_state_dict(torch.load(path+date + '.tar'), strict=False)
                         # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
                         '''
                         model_nn = torch.load(
@@ -388,11 +390,19 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         _,_,embedding = model_ae(gene_data_test.T)
 
                         print("predicting:after ae, embedding is ")
-                        print(embedding)
+                        #print(embedding)
                         print(embedding.shape)
+
                         out,prediction,_ = model_ae(gene_data_test.T)
+                        print("prediction is")
+                        print(prediction)
                         prediction = prediction.view(out.size(0), -1)
                         data_test_pred = prediction.detach().numpy()
+                        print("after to numpy is")
+                        print(data_test_pred)
+                        data_test_pred = pd.DataFrame(np.array(data_test_pred))
+                        data_test_pred.to_csv(
+                            path+date + "prediction.txt", sep='\t')
                         # print('Now predicting ' + gene + "\tusing " + model_type + "\ton " + data_type + "\t" + str(int(count * 100 / num)) + '% ...')
 
                         '''if count == 1:
@@ -405,16 +415,15 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             data_test_pred = np.vstack([data_test_pred, pred2.T])'''
                         print('finish!')
 
-                    data_test_pred = pd.DataFrame(np.array(data_test_pred))
-                    data_test_pred.to_csv(
-                        date +  "prediction.txt", sep='\t')
 
 
 
 
+            '''#7-9
             print("predicting:after ae, embedding is ")
             print(embedding)
             print(embedding.shape)
+            '''
 
             '''
             normalized_data_test_pred = pd.DataFrame(np.array(normalized_data_test_pred))

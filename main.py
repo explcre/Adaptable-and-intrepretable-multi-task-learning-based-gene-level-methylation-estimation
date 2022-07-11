@@ -5,7 +5,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from train_keras_redefined_loss import run
 from predict_keras_redefined_loss import predict
-
+toFillPoint5=True
+toMask=True
 framework='pytorch'
 '''
 if framework=='keras':
@@ -45,7 +46,7 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 25
+num_of_selected_residue = 1000
 selectNumPathwayMode = 'equal_difference'  # '=num_gene'
 # =num_gene: equal number of gene selected
 # 'equal_difference' make pathway-gene-residue an arithmetic sequence
@@ -55,7 +56,7 @@ isMultiDataset = True
 multiDatasetMode = 'softmax'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList = ['diabetes1', 'IBD']#, 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
 AE_epoch = 100  # *len(datasetNameList)
 NN_epoch = 100  # *len(datasetNameList)
@@ -70,7 +71,7 @@ for i in datasetNameList:
     code += (i + ' ')  # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000, 2000, 2000]
 h_dim = 60 * len(datasetNameList)
-date = '7-8%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-multi%s-pMod%s' % (
+date = '7-10p-xm-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
     (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue, lossMode,
     separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode)
 keras = True
@@ -407,8 +408,11 @@ if True or isTrain:
         multi_train_data_and_label_df = multi_train_data_and_label_df.sort_index(ascending=True)
         print("after sort multi_train_data_and_label_df")
         print(multi_train_data_and_label_df)
-        multi_train_data_and_label_df.iloc[:max(0, len(datasetNameList) - 1) + 1,:] = multi_train_data_and_label_df.iloc[:max(0, len(datasetNameList) - 1) + 1,:].fillna(0.5)
-        multi_train_data_and_label_df.iloc[max(1, len(datasetNameList)):,:] = multi_train_data_and_label_df.iloc[max(1, len(datasetNameList)):,:].fillna(0.0)
+        if not toFillPoint5:
+            multi_train_data_and_label_df = multi_train_data_and_label_df.fillna(0.0)
+        else:
+            multi_train_data_and_label_df.iloc[:max(0, len(datasetNameList) - 1) + 1,:] = multi_train_data_and_label_df.iloc[:max(0, len(datasetNameList) - 1) + 1,:].fillna(0.5)#0.5
+            multi_train_data_and_label_df.iloc[max(1, len(datasetNameList)):,:] = multi_train_data_and_label_df.iloc[max(1, len(datasetNameList)):,:].fillna(0.0)
         print("after sort and fill nan multi_train_data_and_label_df")
         print(multi_train_data_and_label_df)
         train_data, test_data = train_test_split(multi_train_data_and_label_df.T, train_size=0.75, random_state=10)

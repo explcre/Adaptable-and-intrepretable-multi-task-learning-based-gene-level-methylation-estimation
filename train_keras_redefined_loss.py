@@ -393,7 +393,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     plt.savefig(path + date + 'multi-task-MeiNN_gene_residue_known_info_heatmap.png')
     #plt.show()
     # above added 22-4-14
+    #gene_data_train_Tensor=gene_data_train
     gene_data_train = np.array(gene_data_train)  # added line on 2-3
+    gene_data_train_Tensor=torch.from_numpy(gene_data_train).float()
     print("gene_data_train=")
     print(gene_data_train)
     np.save(
@@ -464,7 +466,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 if torch.cuda.is_available():
                     ae.cuda()
 
-                criterion = nn.BCELoss()
+                criterion =nn.BCELoss()
                 optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
                 iter_per_epoch = len(data_loader)
                 data_iter = iter(data_loader)
@@ -481,26 +483,73 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
                 AE_loss_list = []
                 y_train_T_tensor=torch.from_numpy(y_train.T.values).float()
+                toPrintInfo = True
                 for epoch in range(num_epochs):
                     t0 = time()
                     for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
                         # flatten the image
                         images = AE.to_var(images.view(images.size(0), -1))
                         images = images.float()
-                        out,prediction,embedding = ae(images)
                         if toPrintInfo:
-                            print("prediction")
-                            print(prediction.shape)
-                            print(prediction)
-                            print("y_train.T")
-                            print(y_train.T.shape)
-                            print(y_train.T)
+                            print("DEBUG INFO:before the input of model MeiNN")
+                            print(images)
+                        #out,prediction,embedding = ae(images)
+                        out, y_pred, embedding = ae(gene_data_train_Tensor.T)
 
-                        loss = criterion(out, images)+criterion(prediction,y_train_T_tensor)
+                        #loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
+
+                        def BCE_loss_masked(y_pred, y):
+                            # y_pred:预测标签，已经过sigmoid/softmax处理 shape is (batch_size, 1)
+                            # y：真实标签（一般为0或1） shape is (batch_size)
+                            mask= y.ne(0.5)
+                            y_masked = torch.masked_select(y, mask)
+                            y_pred_masked = torch.masked_select(y_pred, mask)
+
+                            y_pred_masked = torch.cat((1 - y_pred_masked, y_pred_masked), 1)  # 将二种情况的概率都列出，y_hat形状变为(batch_size, 2)
+                            # 按照y标定的真实标签，取出预测的概率，来计算损失
+                            return - torch.log(y_pred_masked.gather(1, y_masked.view(-1, 1))).mean()
+                            # 函数返回loss均值
+                        toMask=True
+                        y_masked=y_train_T_tensor
+                        y_pred_masked=y_pred
+                        if toMask:
+                            mask = y_train_T_tensor.ne(0.5)
+                            #y_masked = torch.masked_select(y_train_T_tensor, mask)
+                            y_masked=y_train_T_tensor*mask
+                            #y_pred_masked = torch.masked_select(prediction, mask)
+                            y_pred_masked = y_pred*mask
+                        reg_loss=0
+                        for i,param in enumerate(ae.parameters()):
+                            if toPrintInfo:
+                                print("%d-th layer:"%i)
+                                #print(name)
+                                print("param:")
+                                print(param.shape)
+                            reg_loss+=torch.sum(torch.abs(param))
+
+                        loss = reg_loss*0.0001+criterion(y_pred_masked,y_masked)*10000+criterion(out, images)*1
 
                         optimizer.zero_grad()
                         loss.backward()
                         optimizer.step()
+
+                        if toPrintInfo:
+                            print("prediction")
+                            print(y_pred.shape)
+                            print(y_pred)
+                            print("y_train.T")
+                            print(y_train.T.shape)
+                            print(y_train.T)
+                            print("y_pred_masked:")
+                            print(y_pred_masked.shape)
+                            print(y_pred_masked)
+                            print("y_masked")
+                            print(y_masked.shape)
+                            print(y_masked)
+                            toPrintInfo=False
+                        print("reg_loss%f,ae loss%f,prediction loss-masked%f,prediction loss%f" % (reg_loss,
+                        criterion(out, images), criterion(y_pred_masked,y_masked),criterion(y_pred,y_train_T_tensor)))
+
                         print("loss: %f"%loss.item())
                         #print(loss.item())
                         AE_loss_list.append(loss.item())
@@ -513,7 +562,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     if (epoch + 1) % 1 == 0:
                         # save the reconstructed images
                         fixed_x = fixed_x.float()
-                        reconst_images,prediction,embedding = ae(fixed_x)#prediction
+                        reconst_images,y_pred,embedding = ae(fixed_x)#prediction
                         reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[
                             0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
                         #mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
@@ -528,7 +577,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                  "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
                  "optimizer": optimizer.state_dict()}, path+date + '.tar')
 
-                #torch.save(ae.state_dict(), date + '.tar')  # save the whole autoencoder network
+                torch.save(ae, path+date + '.pth')  # save the whole autoencoder network
                 AE_loss_list_df = pd.DataFrame(AE_loss_list)
                 AE_loss_list_df.to_csv(path+date + "_AE_loss_list).csv",sep='\t')
                 if count == 1:

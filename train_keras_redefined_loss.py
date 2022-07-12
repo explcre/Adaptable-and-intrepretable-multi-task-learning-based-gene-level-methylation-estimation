@@ -494,8 +494,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             print("DEBUG INFO:before the input of model MeiNN")
                             print(images)
                         #out,prediction,embedding = ae(images)
-                        out, y_pred, embedding = ae(gene_data_train_Tensor.T)
-
+                        if multiDatasetMode=="softmax":
+                            out, y_pred, embedding = ae(gene_data_train_Tensor.T)
+                        elif multiDatasetMode=="multi-task":
+                            return out, [pred1, pred2, pred3, pred4, pred5, pred6], embedding
                         #loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
 
                         def BCE_loss_masked(y_pred, y):

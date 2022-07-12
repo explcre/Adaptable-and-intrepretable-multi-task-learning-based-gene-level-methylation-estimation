@@ -46,7 +46,7 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 1000
+num_of_selected_residue = 2000
 selectNumPathwayMode = 'equal_difference'  # '=num_gene'
 # =num_gene: equal number of gene selected
 # 'equal_difference' make pathway-gene-residue an arithmetic sequence
@@ -71,7 +71,7 @@ for i in datasetNameList:
     code += (i + ' ')  # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000, 2000, 2000]
 h_dim = 60 * len(datasetNameList)
-date = '7-10p-xm-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
+date = '7-10p-m-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
     (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue, lossMode,
     separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode)
 keras = True

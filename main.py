@@ -46,17 +46,17 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 2000
+num_of_selected_residue = 100
 selectNumPathwayMode = 'equal_difference'  # '=num_gene'
 # =num_gene: equal number of gene selected
 # 'equal_difference' make pathway-gene-residue an arithmetic sequence
 # num : give a value
 num_of_selected_pathway = num_of_selected_residue / 2
 isMultiDataset = True
-multiDatasetMode = 'softmax'
+multiDatasetMode = 'multi-task'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+datasetNameList = ['diabetes1', 'IBD']#, 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
 AE_epoch = 100  # *len(datasetNameList)
 NN_epoch = 100  # *len(datasetNameList)
@@ -71,7 +71,7 @@ for i in datasetNameList:
     code += (i + ' ')  # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000, 2000, 2000]
 h_dim = 60 * len(datasetNameList)
-date = '7-10p-m-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
+date = '7-14p-m-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
     (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue, lossMode,
     separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode)
 keras = True
@@ -461,7 +461,7 @@ if isTrain:
                                              lossMode=lossMode, selectNumPathwayMode=selectNumPathwayMode,
                                              num_of_selected_pathway=num_of_selected_pathway,
                                              AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch,
-                                             separatelyTrainAE_NN=separatelyTrainAE_NN,framework=framework)
+                                             separatelyTrainAE_NN=separatelyTrainAE_NN,toMask=toMask,framework=framework)
             if framework=='keras':
                 myMeiNN.fcn.summary()
                 myMeiNN.autoencoder.summary()

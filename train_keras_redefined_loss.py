@@ -102,7 +102,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='multi-task',datasetNameList=[],
         num_of_selected_residue=1000,lossMode='reg_mean',selectNumPathwayMode = '=num_gene',
         num_of_selected_pathway = 500,
-        AE_epoch_from_main=1000, NN_epoch_from_main=1000, separatelyTrainAE_NN=True,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000, separatelyTrainAE_NN=True,toMask=True,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt",
         framework='keras'):
@@ -494,10 +494,109 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             print("DEBUG INFO:before the input of model MeiNN")
                             print(images)
                         #out,prediction,embedding = ae(images)
+
+                        out=None
+                        y_pred=None
+                        y_pred1 = None
+                        y_pred2 = None
+                        y_pred3 = None
+                        y_pred4 = None
+                        y_pred5 = None
+                        y_pred6 = None
+                        embedding=None
+
+                        def return_reg_loss(ae):
+                            reg_loss = 0
+                            for i, param in enumerate(ae.parameters()):
+                                if toPrintInfo:
+                                    print("%d-th layer:" % i)
+                                    # print(name)
+                                    print("param:")
+                                    print(param.shape)
+                                reg_loss += torch.sum(torch.abs(param))
+                            return reg_loss
                         if multiDatasetMode=="softmax":
                             out, y_pred, embedding = ae(gene_data_train_Tensor.T)
+                            y_masked = y_train_T_tensor
+                            y_pred_masked = y_pred
+                            if toMask:
+                                mask = y_train_T_tensor.ne(0.5)
+                                # y_masked = torch.masked_select(y_train_T_tensor, mask)
+                                y_masked = y_train_T_tensor * mask
+                                # y_pred_masked = torch.masked_select(prediction, mask)
+                                y_pred_masked = y_pred * mask
+                            reg_loss = 0
+                            '''
+                            for i, param in enumerate(ae.parameters()):
+                                if toPrintInfo:
+                                    print("%d-th layer:" % i)
+                                    # print(name)
+                                    print("param:")
+                                    print(param.shape)
+                                reg_loss += torch.sum(torch.abs(param))
+                            '''
+                            print()
+                            reg_loss=return_reg_loss(ae)
+                            loss = reg_loss * 0.0001 + criterion(y_pred_masked, y_masked) * 10000 + criterion(out,
+                                                                                                              images) * 1
+
                         elif multiDatasetMode=="multi-task":
-                            return out, [pred1, pred2, pred3, pred4, pred5, pred6], embedding
+
+                            out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
+                            y_pred1_masked = y_pred1
+                            y_pred2_masked = y_pred2
+                            y_pred3_masked = y_pred3
+                            y_pred4_masked = y_pred4
+                            y_pred5_masked = y_pred5
+                            y_pred6_masked = y_pred6
+                            if toMask:
+                                mask = y_train_T_tensor.ne(0.5)
+                                # y_masked = torch.masked_select(y_train_T_tensor, mask)
+                                y_masked = y_train_T_tensor * mask
+                                # y_pred_masked = torch.masked_select(prediction, mask)
+                                print("DEBUG:y_train_T_tensor is:")
+                                print(y_train_T_tensor)
+                                print("DEBUG:y_pred1 is:")
+                                print(y_pred1)
+                                y_pred1_df=pd.DataFrame(y_pred1.numpy())
+                                y_pred2_df = pd.DataFrame(y_pred2.numpy())
+                                y_pred3_df = pd.DataFrame(y_pred3.numpy())
+                                y_pred4_df = pd.DataFrame(y_pred4.numpy())
+                                y_pred5_df = pd.DataFrame(y_pred5.numpy())
+                                y_pred6_df = pd.DataFrame(y_pred6.numpy())
+                                y_pred_df=pd.concat( [y_pred1_df, y_pred2_df, y_pred3_df, y_pred4_df, y_pred5_df, y_pred6_df],axis=1)
+                                y_pred=torch.from_numpy(y_pred_df.detach().to_numpy())
+                                y_pred_masked=y_pred*mask
+                                y_pred1_masked = y_pred_masked.iloc[:,0] #y_pred1 * mask
+                                y_pred2_masked = y_pred_masked.iloc[:,1] #y_pred2 * mask
+                                y_pred3_masked = y_pred_masked.iloc[:,2] #y_pred3 * mask
+                                y_pred4_masked = y_pred_masked.iloc[:,3] #y_pred4 * mask
+                                y_pred5_masked = y_pred_masked.iloc[:,4] #y_pred5 * mask
+                                y_pred6_masked = y_pred_masked.iloc[:,5] #y_pred6 * mask
+                                #[self.x_train, self.y_train.iloc[:, 0], self.y_train.iloc[:, 1],self.y_train.iloc[:, 2],
+                                # self.y_train.iloc[:, 3], self.y_train.iloc[:, 4], self.y_train.iloc[:, 5]]
+                            reg_loss = 0
+                            '''
+                            for i, param in enumerate(ae.parameters()):
+                                if toPrintInfo:
+                                    print("%d-th layer:" % i)
+                                    # print(name)
+                                    print("param:")
+                                    print(param.shape)
+                                reg_loss += torch.sum(torch.abs(param))'''
+                            reg_loss = return_reg_loss(ae)
+                            pred_loss = criterion(y_pred_masked, y_masked)
+                            '''
+                            criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
+                            criterion(y_pred2_masked, y_masked.iloc[:, 1]) +\
+                            criterion(y_pred3_masked, y_masked.iloc[:, 2]) +\
+                            criterion(y_pred4_masked, y_masked.iloc[:, 3]) +\
+                            criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
+                            criterion(y_pred6_masked, y_masked.iloc[:, 5])
+                            '''
+                            loss=reg_loss * 0.0001 + pred_loss * 10000 + \
+                                 criterion(out,images) * 1
+
                         #loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
 
                         def BCE_loss_masked(y_pred, y):
@@ -511,25 +610,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             # 按照y标定的真实标签，取出预测的概率，来计算损失
                             return - torch.log(y_pred_masked.gather(1, y_masked.view(-1, 1))).mean()
                             # 函数返回loss均值
-                        toMask=True
-                        y_masked=y_train_T_tensor
-                        y_pred_masked=y_pred
-                        if toMask:
-                            mask = y_train_T_tensor.ne(0.5)
-                            #y_masked = torch.masked_select(y_train_T_tensor, mask)
-                            y_masked=y_train_T_tensor*mask
-                            #y_pred_masked = torch.masked_select(prediction, mask)
-                            y_pred_masked = y_pred*mask
-                        reg_loss=0
-                        for i,param in enumerate(ae.parameters()):
-                            if toPrintInfo:
-                                print("%d-th layer:"%i)
-                                #print(name)
-                                print("param:")
-                                print(param.shape)
-                            reg_loss+=torch.sum(torch.abs(param))
 
-                        loss = reg_loss*0.0001+criterion(y_pred_masked,y_masked)*10000+criterion(out, images)*1
+
 
                         optimizer.zero_grad()
                         loss.backward()

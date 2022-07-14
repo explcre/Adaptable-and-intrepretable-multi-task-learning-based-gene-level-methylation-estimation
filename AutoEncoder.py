@@ -248,7 +248,11 @@ class MeiNN(nn.Module):
 
         in_dim = latent_dim
         # output dimension is 1
-        out_dim = len(self.datasetNameList)
+        out_dim=1
+        if self.multiDatasetMode=="softmax":
+            out_dim = len(self.datasetNameList)
+        elif self.multiDatasetMode=="multi-task":
+            out_dim = 1
 
         mid_dim = int(math.sqrt(in_dim * out_dim))
         q3_dim = int(math.sqrt(in_dim * mid_dim))

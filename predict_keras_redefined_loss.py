@@ -360,7 +360,85 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                     pass
                 else:
                     if multiDatasetMode=='multi-task':
-                        pass
+
+                        gene_data_test = np.array(gene_data_test)
+                        hidden_size = 15
+                        print("gene_data_test.shape")
+                        print(gene_data_test.shape)
+                        '''
+                        model_ae = AE.MeiNN(config, path, date, code, gene_data_test.T, Y_test.T, platform, model_type, data_type,
+                                    HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
+                                    NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
+                                    gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                                    toAddGenePathway=toAddGenePathway,
+                                    multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
+                        '''
+                        model_ae = torch.load(path + date + '.pth')
+                        # model_ae.load_state_dict(torch.load(path+date + '.tar'), strict=False)
+                        # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
+                        '''
+                        model_nn = torch.load(
+                            date + '_fully-connected-network.pth')  # load network from parameters saved in network.pth @ 22-2-18
+                        '''  # 2022-7 commented
+
+                        # images = AE.to_var(gene_data_test.T.view(gene_data_test.T.size(0), -1))
+                        # images = images.float()
+                        gene_data_test = torch.from_numpy(gene_data_test)
+                        gene_data_test = AE.to_var(gene_data_test.view(gene_data_test.size(0), -1))
+                        gene_data_test = gene_data_test.float()
+                        _, _, embedding = model_ae(gene_data_test.T)
+
+                        print("predicting:after ae, embedding is ")
+                        # print(embedding)
+                        print(embedding.shape)
+                        print("len(datasetNameList)")
+                        print(len(datasetNameList))
+                        if len(datasetNameList) > 1 and len(datasetNameList) == 6:
+                            ae_out, [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6], _ = model_ae(gene_data_test.T)
+                            print("prediction%d is" % 1)
+
+                            print(pred_out1.shape)
+                            print("prediction%d is" % 2)
+                            print(pred_out2.shape)
+                            print("prediction%d is" % 3)
+                            print(pred_out3.shape)
+                            print("prediction%d is" % 4)
+                            print(pred_out4.shape)
+                            print("prediction%d is" % 5)
+                            print(pred_out5.shape)
+                            print("prediction%d is" % 6)
+                            print(pred_out6.shape)
+
+                            # data_test_pred = [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6]
+                            # data_test_pred = pred_out
+                            data_test_pred = pd.DataFrame(pred_out1.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                                str(separatelyTrainAE_NN) + "pred1).txt", sep='\t')
+                            data_test_pred = pd.DataFrame(pred_out2.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                                str(separatelyTrainAE_NN) + "pred2).txt", sep='\t')
+                            data_test_pred = pd.DataFrame(pred_out3.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                                str(separatelyTrainAE_NN) + "pred3).txt", sep='\t')
+                            data_test_pred = pd.DataFrame(pred_out4.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                                str(separatelyTrainAE_NN) + "pred4).txt", sep='\t')
+                            data_test_pred = pd.DataFrame(pred_out5.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                                str(separatelyTrainAE_NN) + "pred5).txt", sep='\t')
+                            data_test_pred = pd.DataFrame(pred_out6.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
+                                str(separatelyTrainAE_NN) + "pred6).txt", sep='\t')
+                            data_test_ae_out = pd.DataFrame(ae_out.detach().numpy())
+                            data_test_ae_out.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
+                                sep='\t')
                     else:
                         gene_data_test = np.array(gene_data_test)
                         hidden_size = 15

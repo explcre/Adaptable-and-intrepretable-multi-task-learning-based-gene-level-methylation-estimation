@@ -7,7 +7,7 @@ import re
 import torchvision
 
 from MeiNN.MeiNN import MeiNN, gene_to_residue_or_pathway_info
-from MeiNN.MeiNN_pytorch import MeiNN_pytorch
+#from MeiNN.MeiNN_pytorch import MeiNN_pytorch
 from MeiNN.config import config
 import os
 import json
@@ -541,14 +541,16 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                                                                                               images) * 1
 
                         elif multiDatasetMode=="multi-task":
-
+                            y_pred_masked = y_pred
+                            y_masked=y_train_T_tensor
                             out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
+                            '''
                             y_pred1_masked = y_pred1
                             y_pred2_masked = y_pred2
                             y_pred3_masked = y_pred3
                             y_pred4_masked = y_pred4
                             y_pred5_masked = y_pred5
-                            y_pred6_masked = y_pred6
+                            y_pred6_masked = y_pred6'''
                             if toMask:
                                 mask = y_train_T_tensor.ne(0.5)
                                 # y_masked = torch.masked_select(y_train_T_tensor, mask)
@@ -557,22 +559,35 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 print("DEBUG:y_train_T_tensor is:")
                                 print(y_train_T_tensor)
                                 print("DEBUG:y_pred1 is:")
+                                print(y_pred1.shape)
                                 print(y_pred1)
-                                y_pred1_df=pd.DataFrame(y_pred1.numpy())
-                                y_pred2_df = pd.DataFrame(y_pred2.numpy())
-                                y_pred3_df = pd.DataFrame(y_pred3.numpy())
-                                y_pred4_df = pd.DataFrame(y_pred4.numpy())
-                                y_pred5_df = pd.DataFrame(y_pred5.numpy())
-                                y_pred6_df = pd.DataFrame(y_pred6.numpy())
+                                '''
+                                y_pred1_df=pd.DataFrame(y_pred1.detach().numpy())
+                                y_pred2_df = pd.DataFrame(y_pred2.detach().numpy())
+                                y_pred3_df = pd.DataFrame(y_pred3.detach().numpy())
+                                y_pred4_df = pd.DataFrame(y_pred4.detach().numpy())
+                                y_pred5_df = pd.DataFrame(y_pred5.detach().numpy())
+                                y_pred6_df = pd.DataFrame(y_pred6.detach().numpy())
                                 y_pred_df=pd.concat( [y_pred1_df, y_pred2_df, y_pred3_df, y_pred4_df, y_pred5_df, y_pred6_df],axis=1)
-                                y_pred=torch.from_numpy(y_pred_df.detach().to_numpy())
+                                '''
+                                y_pred=torch.cat([y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6],dim=1)
+                                print("y_pred after concat shape")
+                                print(y_pred.shape)
+                                #y_pred=torch.from_numpy(y_pred.to_numpy())
+                                print("mask shape")
+                                print(mask.shape)
+                                print("y_pred shape")
+                                print(y_pred.shape)
                                 y_pred_masked=y_pred*mask
+                                print("y_pred_masked shape")
+                                print(y_pred_masked.shape)
+                                '''
                                 y_pred1_masked = y_pred_masked.iloc[:,0] #y_pred1 * mask
                                 y_pred2_masked = y_pred_masked.iloc[:,1] #y_pred2 * mask
                                 y_pred3_masked = y_pred_masked.iloc[:,2] #y_pred3 * mask
                                 y_pred4_masked = y_pred_masked.iloc[:,3] #y_pred4 * mask
                                 y_pred5_masked = y_pred_masked.iloc[:,4] #y_pred5 * mask
-                                y_pred6_masked = y_pred_masked.iloc[:,5] #y_pred6 * mask
+                                y_pred6_masked = y_pred_masked.iloc[:,5] #y_pred6 * mask'''
                                 #[self.x_train, self.y_train.iloc[:, 0], self.y_train.iloc[:, 1],self.y_train.iloc[:, 2],
                                 # self.y_train.iloc[:, 3], self.y_train.iloc[:, 4], self.y_train.iloc[:, 5]]
                             reg_loss = 0
@@ -585,6 +600,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print(param.shape)
                                 reg_loss += torch.sum(torch.abs(param))'''
                             reg_loss = return_reg_loss(ae)
+
                             pred_loss = criterion(y_pred_masked, y_masked)
                             '''
                             criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
@@ -594,8 +610,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
-                            loss=reg_loss * 0.0001 + pred_loss * 10000 + \
-                                 criterion(out,images) * 1
+                            loss=reg_loss * 0.0001 + pred_loss * 10000 + criterion(out,images) * 1
 
                         #loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
 

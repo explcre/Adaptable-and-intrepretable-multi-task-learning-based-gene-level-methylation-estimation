@@ -543,7 +543,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         elif multiDatasetMode=="multi-task":
                             y_pred_masked = y_pred
                             y_masked=y_train_T_tensor
-                            out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
+                            y_pred_list=None
+                            if len(datasetNameList)==6:
+                                #out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
+                                out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                            if len(datasetNameList)==5:
+                                out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(gene_data_train_Tensor.T)
                             '''
                             y_pred1_masked = y_pred1
                             y_pred2_masked = y_pred2
@@ -551,16 +556,64 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             y_pred4_masked = y_pred4
                             y_pred5_masked = y_pred5
                             y_pred6_masked = y_pred6'''
+                            y_pred1 = y_pred_list[:,0]
+                            y_pred2 = y_pred_list[:,1]
+                            y_pred3 = y_pred_list[:,2]
+                            y_pred4 = y_pred_list[:,3]
+                            y_pred5 = y_pred_list[:,4]
+                            y_pred6 = y_pred_list[:,5]
+                            print("DEBUG: y_pred_list is:")
+                            print(y_pred_list.shape)
+                            print(y_pred_list[0].shape)
+                            print(y_pred_list[:,0].shape)
+
                             if toMask:
                                 mask = y_train_T_tensor.ne(0.5)
                                 # y_masked = torch.masked_select(y_train_T_tensor, mask)
                                 y_masked = y_train_T_tensor * mask
                                 # y_pred_masked = torch.masked_select(prediction, mask)
                                 print("DEBUG:y_train_T_tensor is:")
-                                print(y_train_T_tensor)
+                                print(y_train_T_tensor.shape)
+                                #print(y_train_T_tensor)
+                                print("DEBUG: mask is:")
+                                print(mask.shape)
+                                #print(mask)
+                                print("DEBUG: y_masked is:")
+                                print(y_masked.shape)
+                                #print(y_masked)
                                 print("DEBUG:y_pred1 is:")
                                 print(y_pred1.shape)
-                                print(y_pred1)
+                                #print(y_pred1)
+
+                                y_masked_splited=torch.split(y_masked, 1, 1)
+                                mask_splited = torch.split(mask, 1, 1)
+                                print("len of y_masked_splited%d"%len(y_masked_splited))
+                                print("DEBUG: y_masked_splited is:")
+                                print(y_masked_splited[0].shape)
+                                #print(y_masked_splited)
+                                print("DEBUG: mask_splited is:")
+                                print("len of mask_splited%d" % len(mask_splited))
+                                print(mask_splited[0].shape)
+                                #print(mask_splited)
+                                y_pred_masked_list=[y_pred_list[:,0]*len(datasetNameList)]
+                                loss_list=[y_pred_list[:,0]*len(datasetNameList)]
+                                for i in range(len(datasetNameList)):
+                                    y_pred_masked_list[i]=y_pred_list[:,i]*mask_splited[i]
+                                    loss_list[i]=criterion(y_pred_masked_list[i], y_masked_splited[i].squeeze())
+                                    print("loss_list[%d]= %f"%(i,loss_list[i]))
+                                y_pred_masked1 = y_pred1 * mask_splited[0]
+                                y_pred_masked2 = y_pred2 * mask_splited[1]
+                                y_pred_masked3 = y_pred3 * mask_splited[2]
+                                y_pred_masked4 = y_pred4 * mask_splited[3]
+                                y_pred_masked5 = y_pred5 * mask_splited[4]
+                                y_pred_masked6 = y_pred6 * mask_splited[5]
+                                loss1 = criterion(y_pred_masked1, y_masked_splited[0].squeeze())
+                                loss2 = criterion(y_pred_masked2, y_masked_splited[1].squeeze())
+                                loss3 = criterion(y_pred_masked3, y_masked_splited[2].squeeze())
+                                loss4 = criterion(y_pred_masked4, y_masked_splited[3].squeeze())
+                                loss5 = criterion(y_pred_masked5, y_masked_splited[4].squeeze())
+                                loss6 = criterion(y_pred_masked6, y_masked_splited[5].squeeze())
+                                loss_total_splited_sum=loss1+loss2+loss3+loss4+loss5+loss6
                                 '''
                                 y_pred1_df=pd.DataFrame(y_pred1.detach().numpy())
                                 y_pred2_df = pd.DataFrame(y_pred2.detach().numpy())
@@ -602,6 +655,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             reg_loss = return_reg_loss(ae)
 
                             pred_loss = criterion(y_pred_masked, y_masked)
+
                             '''
                             criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
                             criterion(y_pred2_masked, y_masked.iloc[:, 1]) +\

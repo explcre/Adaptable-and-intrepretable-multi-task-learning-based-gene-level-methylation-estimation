@@ -280,13 +280,16 @@ class MeiNN(nn.Module):
         out = self.decoder(embedding)
         pred = self.FCN(embedding)
         if self.multiDatasetMode=='multi-task':
-            pred1= self.FCN(embedding)
-            pred2 = self.FCN(embedding)
-            pred3 = self.FCN(embedding)
-            pred4 = self.FCN(embedding)
-            pred5 = self.FCN(embedding)
-            pred6 = self.FCN(embedding)
-            return out,[pred1,pred2,pred3,pred4,pred5,pred6],embedding
+            if len(self.datasetNameList)==6:
+                pred1= self.FCN(embedding)
+                pred2 = self.FCN(embedding)
+                pred3 = self.FCN(embedding)
+                pred4 = self.FCN(embedding)
+                pred5 = self.FCN(embedding)
+                pred6 = self.FCN(embedding)
+                pred_list=torch.cat([pred1,pred2,pred3,pred4,pred5,pred6],dim=1)
+                return out,pred_list,embedding
+                #return out,[pred1,pred2,pred3,pred4,pred5,pred6],embedding
 
         return out,pred,embedding
     def code(self,x):

@@ -394,7 +394,10 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         print("len(datasetNameList)")
                         print(len(datasetNameList))
                         if len(datasetNameList) > 1 and len(datasetNameList) == 6:
-                            ae_out, [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6], _ = model_ae(gene_data_test.T)
+                            #ae_out, [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6], _ = model_ae(gene_data_test.T)
+                            ae_out, pred_out_list, _ = model_ae(
+                                gene_data_test.T)
+                            [pred_out1, pred_out2, pred_out3, pred_out4, pred_out5, pred_out6]=pred_out_list
                             print("prediction%d is" % 1)
 
                             print(pred_out1.shape)

@@ -2,9 +2,52 @@
 # coding:unicode_escape
 import pandas as pd
 import numpy as np
+import sklearn
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression, LinearRegression
+import sklearn.naive_bayes as bayes
+from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.model_selection import cross_val_score
+from sklearn.tree import DecisionTreeClassifier
+
 from train_keras_redefined_loss import run
 from predict_keras_redefined_loss import predict
+
+KnnMod = KNeighborsClassifier()
+LrMod = LogisticRegression()
+BayesBernlliMod = bayes.BernoulliNB(alpha=1.0,binarize=0.0,fit_prior=True,class_prior=None)
+BayesGaussianMod = bayes.GaussianNB()
+DecisionTreeMod = DecisionTreeClassifier(
+    criterion='entropy',
+    max_depth=None,min_samples_split=2,
+    min_samples_leaf=1,max_features=None
+    )
+
+SvmMod = SVC(probability=True)
+adaMod = AdaBoostClassifier(base_estimator=None)
+gbMod = GradientBoostingClassifier(loss='deviance', learning_rate=0.1, n_estimators=200, subsample=1.0,
+                                   min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_depth=3,
+                                   init=None, random_state=None, max_features=None, verbose=0)
+rfMod = RandomForestClassifier(n_estimators=100, criterion='gini', max_depth=None, min_samples_split=2,
+                               min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_features='auto',
+                               max_leaf_nodes=None, bootstrap=True, oob_score=False, n_jobs=1, random_state=None,
+                               verbose=0)
+LinRegMod = LinearRegression(fit_intercept=True,normalize=False,copy_X=True,n_jobs=1)
+mod_list = [LinRegMod,KnnMod, LrMod,BayesBernlliMod,BayesGaussianMod,DecisionTreeMod, SvmMod, adaMod, gbMod, rfMod]
+
+def crossDict(functions,train_x,train_y ,cv,verbose,scr,test_x,test_y):
+    valDict={}
+    for func in functions:
+        valScore = cross_val_score(func,train_x,train_y,cv=cv,verbose=verbose,scoring=scr)
+        func.fit(train_x,train_y)
+        testScore = func.score(test_x,test_y)
+        valDict[str(func).split('(')[0]] = [valScore.mean(), valScore.std(),testScore]
+    return valDict
+
+#############################################
+justToCheckBaseline=False
 toFillPoint5=True
 toMask=True
 framework='pytorch'
@@ -46,7 +89,7 @@ selectNumResidueMode = 'num'
 # pvalue:define a threshold of pvalue
 # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
 pvalueThreshold = 1e-5
-num_of_selected_residue = 100
+num_of_selected_residue = 20000
 selectNumPathwayMode = 'equal_difference'  # '=num_gene'
 # =num_gene: equal number of gene selected
 # 'equal_difference' make pathway-gene-residue an arithmetic sequence
@@ -56,7 +99,7 @@ isMultiDataset = True
 multiDatasetMode = 'multi-task'
 # softmax: multi-class, with last layer of MeiNN is softmax
 # multi-task: multi-task solution with network architecture for each task
-datasetNameList = ['diabetes1', 'IBD']#, 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA','SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
 model = None
 AE_epoch = 100  # *len(datasetNameList)
 NN_epoch = 100  # *len(datasetNameList)
@@ -71,7 +114,7 @@ for i in datasetNameList:
     code += (i + ' ')  # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000, 2000, 2000]
 h_dim = 60 * len(datasetNameList)
-date = '7-14p-m-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
+date = '7-16p-base-m-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
     (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue, lossMode,
     separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode)
 keras = True
@@ -452,7 +495,17 @@ if True or isTrain:
 if isTrain:
     if (not just_check_data):
         if (framework=='keras' or framework=='pytorch') and toTrainMeiNN == True:
-            myMeiNN, residue_name_list = run(path, date, code, train_data, train_label, platform, model_type, data_type,
+            ############2022-7-16baseline building############################
+            if justToCheckBaseline:
+                csd = crossDict(mod_list, train_data.T, train_label.T, 9, 1, "accuracy",test_data.T,test_label.T)
+                print("*"*20+"baseline models"+"*"*20)
+                print(datasetNameList)
+                print("%d"%num_of_selected_residue)
+                f = open(path+date+"baseline_model_results.txt", 'w')
+                print(csd)
+            ##################################################################
+            if not justToCheckBaseline:
+                myMeiNN, residue_name_list = run(path, date, code, train_data, train_label, platform, model_type, data_type,
                                              h_dim,
                                              toTrainMeiNN=toTrainMeiNN, toAddGenePathway=toAddGenePathway,
                                              toAddGeneSite=toAddGeneSite, multiDatasetMode=multiDatasetMode,
@@ -481,8 +534,10 @@ if keras:
     ae.summary()
     fcn.summary()
 '''
-residue_name_list = np.load(
-    path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt.npy")
+if not justToCheckBaseline:
+    residue_name_list = np.load(
+        path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt.npy")
+
 print("test label is")
 print(test_label)
 # test_label = pd.DataFrame(np.array(test_label)))
@@ -491,7 +546,7 @@ test_label.T.to_csv(
     sep='\t')
 
 # predict
-if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndCheckAccuracy):
+if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndCheckAccuracy) and (not justToCheckBaseline):
     # test_data = pd.read_table(test_dataset_filename, index_col=0)
     # test_label = pd.read_table(test_label_filename, index_col=0)
     '''
@@ -509,7 +564,7 @@ if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndChe
             num_of_selected_pathway=num_of_selected_pathway,
             AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch,
             separatelyTrainAE_NN=separatelyTrainAE_NN, framework=framework)
-elif isPredict and (not just_check_data) and (onlyGetPredictionFromLocalAndCheckAccuracy):
+elif isPredict and (not just_check_data) and (onlyGetPredictionFromLocalAndCheckAccuracy) and (not justToCheckBaseline):
     data_test_pred = pd.read_csv(
         path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + ").txt",
         sep='\t', index_col=0)

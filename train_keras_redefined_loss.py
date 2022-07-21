@@ -515,6 +515,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print(param.shape)
                                 reg_loss += torch.sum(torch.abs(param))
                             return reg_loss
+                        
                         if multiDatasetMode=="softmax":
                             out, y_pred, embedding = ae(gene_data_train_Tensor.T)
                             y_masked = y_train_T_tensor
@@ -556,12 +557,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             y_pred4_masked = y_pred4
                             y_pred5_masked = y_pred5
                             y_pred6_masked = y_pred6'''
+                            '''
                             y_pred1 = y_pred_list[:,0]
                             y_pred2 = y_pred_list[:,1]
                             y_pred3 = y_pred_list[:,2]
                             y_pred4 = y_pred_list[:,3]
                             y_pred5 = y_pred_list[:,4]
                             y_pred6 = y_pred_list[:,5]
+                            '''
                             print("DEBUG: y_pred_list is:")
                             print(y_pred_list.shape)
                             print(y_pred_list[0].shape)
@@ -595,12 +598,23 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 print("len of mask_splited%d" % len(mask_splited))
                                 print(mask_splited[0].shape)
                                 #print(mask_splited)
-                                y_pred_masked_list=[y_pred_list[:,0]*len(datasetNameList)]
-                                loss_list=[y_pred_list[:,0]*len(datasetNameList)]
+                                y_pred_masked_list=[]#[y_pred_list[:,0]*len(datasetNameList)]
+                                loss_list=[]#[y_pred_list[:,0]*len(datasetNameList)]
+                                pred_loss_total_splited_sum=0
                                 for i in range(len(datasetNameList)):
-                                    y_pred_masked_list[i]=y_pred_list[:,i]*mask_splited[i]
-                                    loss_list[i]=criterion(y_pred_masked_list[i], y_masked_splited[i].squeeze())
-                                    print("loss_list[%d]= %f"%(i,loss_list[i]))
+                                    y_pred_masked_list.append(y_pred_list[:,i]*mask_splited[i].squeeze())
+                                    
+                                    loss_list.append(criterion(y_pred_masked_list[i], y_masked_splited[i].squeeze()))
+                                    pred_loss_total_splited_sum += loss_list[i]
+                                    if toPrintInfo:
+                                        print("y_pred_masked_list[i]shape")
+                                        print(y_pred_masked_list[i].shape)
+                                        print("y_masked_splited[i].squeeze()shape")
+                                        print(y_masked_splited[i].squeeze().shape)
+                                        print("loss_list[%d]= %f"%(i,loss_list[i]))
+                                        print("pred_loss_total_splited_sum= %f" % (pred_loss_total_splited_sum))
+                                    
+                                '''
                                 y_pred_masked1 = y_pred1 * mask_splited[0]
                                 y_pred_masked2 = y_pred2 * mask_splited[1]
                                 y_pred_masked3 = y_pred3 * mask_splited[2]
@@ -615,6 +629,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 loss6 = criterion(y_pred_masked6, y_masked_splited[5].squeeze())
                                 loss_total_splited_sum=loss1+loss2+loss3+loss4+loss5+loss6
                                 '''
+                                '''
                                 y_pred1_df=pd.DataFrame(y_pred1.detach().numpy())
                                 y_pred2_df = pd.DataFrame(y_pred2.detach().numpy())
                                 y_pred3_df = pd.DataFrame(y_pred3.detach().numpy())
@@ -623,7 +638,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 y_pred6_df = pd.DataFrame(y_pred6.detach().numpy())
                                 y_pred_df=pd.concat( [y_pred1_df, y_pred2_df, y_pred3_df, y_pred4_df, y_pred5_df, y_pred6_df],axis=1)
                                 '''
-                                y_pred=torch.cat([y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6],dim=1)
+                                '''
+                                y_pred=torch.cat([y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6],dim=0)
                                 print("y_pred after concat shape")
                                 print(y_pred.shape)
                                 #y_pred=torch.from_numpy(y_pred.to_numpy())
@@ -634,6 +650,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 y_pred_masked=y_pred*mask
                                 print("y_pred_masked shape")
                                 print(y_pred_masked.shape)
+                                '''
                                 '''
                                 y_pred1_masked = y_pred_masked.iloc[:,0] #y_pred1 * mask
                                 y_pred2_masked = y_pred_masked.iloc[:,1] #y_pred2 * mask
@@ -654,7 +671,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 reg_loss += torch.sum(torch.abs(param))'''
                             reg_loss = return_reg_loss(ae)
 
-                            pred_loss = criterion(y_pred_masked, y_masked)
+                            #pred_loss = criterion(y_pred_masked, y_masked)
+                            
 
                             '''
                             criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
@@ -664,7 +682,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
-                            loss=reg_loss * 0.0001 + pred_loss * 10000 + criterion(out,images) * 1
+                            loss=reg_loss * 0.0001 + pred_loss_total_splited_sum * 10000 + criterion(out,images) * 1
 
                         #loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
 
@@ -689,19 +707,19 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         if toPrintInfo:
                             print("prediction")
                             print(y_pred.shape)
-                            print(y_pred)
+                            #print(y_pred)
                             print("y_train.T")
                             print(y_train.T.shape)
-                            print(y_train.T)
+                            #print(y_train.T)
                             print("y_pred_masked:")
                             print(y_pred_masked.shape)
-                            print(y_pred_masked)
+                            #print(y_pred_masked)
                             print("y_masked")
                             print(y_masked.shape)
-                            print(y_masked)
+                            #print(y_masked)
                             toPrintInfo=False
                         print("reg_loss%f,ae loss%f,prediction loss-masked%f,prediction loss%f" % (reg_loss,
-                        criterion(out, images), criterion(y_pred_masked,y_masked),criterion(y_pred,y_train_T_tensor)))
+                        criterion(out, images), pred_loss_total_splited_sum,criterion(y_pred_list,y_train_T_tensor)))
 
                         print("loss: %f"%loss.item())
                         #print(loss.item())
@@ -726,6 +744,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
                     ##################
                     model = model_dict[model_type]()
+                for i, param in enumerate(ae.parameters()):
+                        print("%d-th layer:" % i)
+                        print("param:")
+                        print(param.shape)
                 torch.save({"epoch": num_epochs,  # 一共训练的epoch
                  "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
                  "optimizer": optimizer.state_dict()}, path+date + '.tar')

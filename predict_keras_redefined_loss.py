@@ -398,6 +398,10 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             ae_out, pred_out_list, _ = model_ae(
                                 gene_data_test.T)
                             [pred_out1, pred_out2, pred_out3, pred_out4, pred_out5, pred_out6]=pred_out_list
+                            #for i in range(len(datasetNameList)):
+                            print("prediction list is" )
+                            print(pred_out_list)
+                            '''
                             print("prediction%d is" % 1)
 
                             print(pred_out1.shape)
@@ -411,9 +415,13 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             print(pred_out5.shape)
                             print("prediction%d is" % 6)
                             print(pred_out6.shape)
-
+                            '''
                             # data_test_pred = [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6]
                             # data_test_pred = pred_out
+                            data_test_pred = pd.DataFrame(pred_out_list.detach().numpy())
+                            data_test_pred.to_csv(
+                                path + date + "_" + code + "separateAE-NN=" + str(separatelyTrainAE_NN) + "pred_list.txt", sep='\t')
+                            '''
                             data_test_pred = pd.DataFrame(pred_out1.detach().numpy())
                             data_test_pred.to_csv(
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
@@ -438,6 +446,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             data_test_pred.to_csv(
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
                                 str(separatelyTrainAE_NN) + "pred6).txt", sep='\t')
+                            '''
                             data_test_ae_out = pd.DataFrame(ae_out.detach().numpy())
                             data_test_ae_out.to_csv(
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",

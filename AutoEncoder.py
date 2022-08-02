@@ -287,7 +287,8 @@ class MeiNN(nn.Module):
                 pred4 = self.FCN(embedding)
                 pred5 = self.FCN(embedding)
                 pred6 = self.FCN(embedding)
-                pred_list=torch.cat([pred1,pred2,pred3,pred4,pred5,pred6],dim=1)
+                pred_list=[pred1,pred2,pred3,pred4,pred5,pred6]
+                #pred_list=torch.cat([pred1,pred2,pred3,pred4,pred5,pred6],dim=1)
                 return out,pred_list,embedding
                 #return out,[pred1,pred2,pred3,pred4,pred5,pred6],embedding
 

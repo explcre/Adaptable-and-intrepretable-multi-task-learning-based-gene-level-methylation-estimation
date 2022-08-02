@@ -515,7 +515,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print(param.shape)
                                 reg_loss += torch.sum(torch.abs(param))
                             return reg_loss
-                        
                         if multiDatasetMode=="softmax":
                             out, y_pred, embedding = ae(gene_data_train_Tensor.T)
                             y_masked = y_train_T_tensor
@@ -563,12 +562,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             y_pred3 = y_pred_list[:,2]
                             y_pred4 = y_pred_list[:,3]
                             y_pred5 = y_pred_list[:,4]
-                            y_pred6 = y_pred_list[:,5]
-                            '''
+                            y_pred6 = y_pred_list[:,5]'''
                             print("DEBUG: y_pred_list is:")
-                            print(y_pred_list.shape)
-                            print(y_pred_list[0].shape)
-                            print(y_pred_list[:,0].shape)
+                            #print(y_pred_list.shape)
+                            print(len(y_pred_list[0]))
+                            #print(y_pred_list[:,0].shape)
 
                             if toMask:
                                 mask = y_train_T_tensor.ne(0.5)
@@ -584,8 +582,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 print("DEBUG: y_masked is:")
                                 print(y_masked.shape)
                                 #print(y_masked)
-                                print("DEBUG:y_pred1 is:")
-                                print(y_pred1.shape)
+                                #print("DEBUG:y_pred1 is:")
+                                #print(y_pred1.shape)
                                 #print(y_pred1)
 
                                 y_masked_splited=torch.split(y_masked, 1, 1)
@@ -602,18 +600,16 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 loss_list=[]#[y_pred_list[:,0]*len(datasetNameList)]
                                 pred_loss_total_splited_sum=0
                                 for i in range(len(datasetNameList)):
-                                    y_pred_masked_list.append(y_pred_list[:,i]*mask_splited[i].squeeze())
-                                    
-                                    loss_list.append(criterion(y_pred_masked_list[i], y_masked_splited[i].squeeze()))
-                                    pred_loss_total_splited_sum += loss_list[i]
+                                    y_pred_masked_list.append(y_pred_list[i].T*(mask_splited[i].squeeze()).squeeze())#y_pred_list[:,i]*mask_splited[i].squeeze())
+                                    loss_list.append(criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze()))
+                                    pred_loss_total_splited_sum+=criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze())#loss_list[i]
                                     if toPrintInfo:
                                         print("y_pred_masked_list[i]shape")
                                         print(y_pred_masked_list[i].shape)
                                         print("y_masked_splited[i].squeeze()shape")
                                         print(y_masked_splited[i].squeeze().shape)
                                         print("loss_list[%d]= %f"%(i,loss_list[i]))
-                                        print("pred_loss_total_splited_sum= %f" % (pred_loss_total_splited_sum))
-                                    
+                                        print("pred_loss_total_splited_sum=%f"%pred_loss_total_splited_sum)
                                 '''
                                 y_pred_masked1 = y_pred1 * mask_splited[0]
                                 y_pred_masked2 = y_pred2 * mask_splited[1]
@@ -672,7 +668,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             reg_loss = return_reg_loss(ae)
 
                             #pred_loss = criterion(y_pred_masked, y_masked)
-                            
 
                             '''
                             criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
@@ -705,21 +700,22 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         optimizer.step()
 
                         if toPrintInfo:
-                            print("prediction")
-                            print(y_pred.shape)
-                            #print(y_pred)
+                            print("y_pred_list[0].shape")
+                            print(y_pred_list[0].shape)
+                            #print(y_pred_list)
                             print("y_train.T")
                             print(y_train.T.shape)
                             #print(y_train.T)
-                            print("y_pred_masked:")
-                            print(y_pred_masked.shape)
-                            #print(y_pred_masked)
+                            print("y_pred_masked_list[0] shape:")
+                            print(y_pred_masked_list[0].shape)
+                            #print(y_pred_masked_list)
                             print("y_masked")
                             print(y_masked.shape)
                             #print(y_masked)
                             toPrintInfo=False
+                        #y_pred_list=np.array(y_pred_list)
                         print("reg_loss%f,ae loss%f,prediction loss-masked%f,prediction loss%f" % (reg_loss,
-                        criterion(out, images), pred_loss_total_splited_sum,criterion(y_pred_list,y_train_T_tensor)))
+                        criterion(out, images), pred_loss_total_splited_sum ,criterion(torch.Tensor([item.cpu().detach().numpy() for item in y_pred_list]).squeeze().T,y_train_T_tensor)))
 
                         print("loss: %f"%loss.item())
                         #print(loss.item())
@@ -745,9 +741,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     ##################
                     model = model_dict[model_type]()
                 for i, param in enumerate(ae.parameters()):
-                        print("%d-th layer:" % i)
-                        print("param:")
-                        print(param.shape)
+                    print("%d-th layer:" % i)
+                    print("param:")
+                    print(param.shape)
                 torch.save({"epoch": num_epochs,  # 一共训练的epoch
                  "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
                  "optimizer": optimizer.state_dict()}, path+date + '.tar')

@@ -78,7 +78,8 @@ toTrainMeiNN = True
 toAddGeneSite = True
 toAddGenePathway = True
 just_check_data = False
-
+toValidate=True
+validate_rate=0.1
 onlyGetPredictionFromLocalAndCheckAccuracy = False
 lossMode = 'reg_mean'
 # reg_mean: we set loss as mean of regularization+prediction loss
@@ -460,11 +461,20 @@ if True or isTrain:
         print("after sort and fill nan multi_train_data_and_label_df")
         print(multi_train_data_and_label_df)
         train_data, test_data = train_test_split(multi_train_data_and_label_df.T, train_size=0.75, random_state=10)
+        if toValidate:
+            valid_data,train_data= train_test_split(train_data, train_size=validate_rate, random_state=10)
+            train_label = train_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # train_data.iloc[:,-1].T
+            test_label = test_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # test_data.iloc[:,-1].T
+            valid_label = valid_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # test_data.iloc[:,-1].T
 
-        train_label = train_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # train_data.iloc[:,-1].T
-        test_label = test_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # test_data.iloc[:,-1].T
-        train_data = train_data.iloc[:, max(1, len(datasetNameList)):].T  # train_data.iloc[:, :-1].T
-        test_data = test_data.iloc[:, max(1, len(datasetNameList)):].T  # test_data.iloc[:, :-1].T
+            train_data = train_data.iloc[:, max(1, len(datasetNameList)):].T  # train_data.iloc[:, :-1].T
+            test_data = test_data.iloc[:, max(1, len(datasetNameList)):].T  # test_data.iloc[:, :-1].T
+            valid_data = valid_data.iloc[:, max(1, len(datasetNameList)):].T  # test_data.iloc[:, :-1].T
+        else:
+            train_label = train_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # train_data.iloc[:,-1].T
+            test_label = test_data.iloc[:, :max(0, len(datasetNameList) - 1) + 1].T  # test_data.iloc[:,-1].T
+            train_data = train_data.iloc[:, max(1, len(datasetNameList)):].T  # train_data.iloc[:, :-1].T
+            test_data = test_data.iloc[:, max(1, len(datasetNameList)):].T  # test_data.iloc[:, :-1].T
 
         print("finish read train data")
         # train_data,test_data=train_test_split(train_data_total, train_size=0.75, random_state=10)

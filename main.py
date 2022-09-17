@@ -97,7 +97,7 @@ selectNumPathwayMode = 'equal_difference'  # '=num_gene'
 # 'num' : give a value
 num_of_selected_pathway = num_of_selected_residue / 2
 isMultiDataset = True
-multiDatasetMode = "multi-task" #'multi-task'
+multiDatasetMode = "pretrain-finetune" #'multi-task'
 # 'softmax': multi-class, with last layer of MeiNN is softmax
 # 'multi-task': multi-task solution with network architecture for each task
 # 'pretrain-finetune': first pretrain a big model with multi-tasks, then finetune each single dataset classifier
@@ -105,6 +105,10 @@ datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA','SLE']  # "diabet
 model = None
 AE_epoch = 100  # *len(datasetNameList)
 NN_epoch = 100  # *len(datasetNameList)
+batch_size_mode="ratio"
+batch_size_ratio=1.0
+#if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
+
 separatelyTrainAE_NN = False
 toAddSkipConnection = False
 ae = None
@@ -116,9 +120,9 @@ for i in datasetNameList:
     code += (i + '-')  # "GSE66695"#GSE42861_processed_methylation_matrix #"GSE66695-series"
 num_of_selected_residue_list = [2000, 2000, 2000]
 h_dim = 60 * len(datasetNameList)
-date = '8-2p-m-pd0000-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s' % (
+date = '9-16ft-p-m-pde4-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%f' % (
     (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue, lossMode,
-    separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode)
+    separatelyTrainAE_NN, multiDatasetMode,selectNumPathwayMode,batch_size_ratio)
 keras = True
 path = r"./result/"
 selected_residue_name_list = set()
@@ -525,6 +529,7 @@ if isTrain:
                                              lossMode=lossMode, selectNumPathwayMode=selectNumPathwayMode,
                                              num_of_selected_pathway=num_of_selected_pathway,
                                              AE_epoch_from_main=AE_epoch, NN_epoch_from_main=NN_epoch,
+                                             batch_size_mode=batch_size_mode,batch_size_ratio=batch_size_ratio,
                                              separatelyTrainAE_NN=separatelyTrainAE_NN,toMask=toMask,framework=framework)
             if framework=='keras':
                 myMeiNN.fcn.summary()

@@ -251,25 +251,47 @@ class MeiNN(nn.Module):
         out_dim=1
         if self.multiDatasetMode=="softmax":
             out_dim = len(self.datasetNameList)
-        elif self.multiDatasetMode=="multi-task":
+        elif self.multiDatasetMode=="multi-task" or self.multiDatasetMode=="pretrain-finetune":
             out_dim = 1
 
         mid_dim = int(math.sqrt(in_dim * out_dim))
         q3_dim = int(math.sqrt(in_dim * mid_dim))
 
         q1_dim = int(math.sqrt(latent_dim * mid_dim))
-        self.FCN = nn.Sequential(
-            nn.Linear(in_dim, q3_dim),
-            nn.ReLU(),
-            nn.Linear(q3_dim, mid_dim),
-            nn.ReLU(),
-            nn.Linear(mid_dim, q1_dim),
-            nn.ReLU(),  # nn.Sigmoid()
-            # nn.Linear(q1_dim, q3_dim),
-            # nn.ReLU(),
-            nn.Linear(q1_dim, out_dim),
-            nn.Sigmoid()
-        )
+        #self.FCN=[]
+        #for i in range(len(self.datasetNameList)):
+        self.FCN1=nn.Sequential(
+                nn.Linear(in_dim, q3_dim),
+                nn.ReLU(),
+                nn.Linear(q3_dim, mid_dim),
+                nn.ReLU(),
+                nn.Linear(mid_dim, q1_dim),
+                nn.ReLU(),  # nn.Sigmoid()
+                # nn.Linear(q1_dim, q3_dim),
+                # nn.ReLU(),
+                nn.Linear(q1_dim, out_dim),
+                nn.Sigmoid()
+            )
+        self.FCN2 = nn.Sequential(nn.Linear(in_dim, q3_dim),nn.ReLU(),
+                                  nn.Linear(q3_dim, mid_dim),nn.ReLU(),
+                                  nn.Linear(mid_dim, q1_dim),nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim, out_dim),nn.Sigmoid())
+        self.FCN3 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
+                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
+                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
+        self.FCN4 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
+                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
+                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
+        self.FCN5 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
+                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
+                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
+        self.FCN6 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
+                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
+                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
 
 
     def forward(self, x):
@@ -278,15 +300,20 @@ class MeiNN(nn.Module):
         """
         embedding = self.encoder(x)
         out = self.decoder(embedding)
-        pred = self.FCN(embedding)
-        if self.multiDatasetMode=='multi-task':
+        #FCN0=self.FCN[0]
+        pred = self.FCN1(embedding)
+        pred_list=[]
+        if self.multiDatasetMode=="multi-task" or self.multiDatasetMode=="pretrain-finetune":
             if len(self.datasetNameList)==6:
-                pred1= self.FCN(embedding)
-                pred2 = self.FCN(embedding)
-                pred3 = self.FCN(embedding)
-                pred4 = self.FCN(embedding)
-                pred5 = self.FCN(embedding)
-                pred6 = self.FCN(embedding)
+                '''for i in range(len(self.datasetNameList)):
+                    FCN_i=self.FCN[i]
+                    pred_list.append(FCN_i(embedding))'''
+                pred1= self.FCN1(embedding)
+                pred2 = self.FCN2(embedding)
+                pred3 = self.FCN3(embedding)
+                pred4 = self.FCN4(embedding)
+                pred5 = self.FCN5(embedding)
+                pred6 = self.FCN6(embedding)
                 pred_list=[pred1,pred2,pred3,pred4,pred5,pred6]
                 #pred_list=torch.cat([pred1,pred2,pred3,pred4,pred5,pred6],dim=1)
                 return out,pred_list,embedding

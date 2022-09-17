@@ -5,14 +5,9 @@ import re
 # from resVAE.config import config
 # import resVAE.reporting as report
 import torchvision
-# from fastai.basic_data import DataBunch
-# from fastai.basic_train import Learner
-# from fastai.layers import *
-# from fastai.metrics import accuracy
-# from fastai.train import ShowGraph
 
 from MeiNN.MeiNN import MeiNN, gene_to_residue_or_pathway_info
-# from MeiNN.MeiNN_pytorch import MeiNN_pytorch
+#from MeiNN.MeiNN_pytorch import MeiNN_pytorch
 from MeiNN.config import config
 import os
 import json
@@ -102,80 +97,12 @@ def cube_data(data):
     return data ** 3
 
 
-toPrintInfo=False
-
-def return_reg_loss(ae):
-    reg_loss = 0
-    for i, param in enumerate(ae.decoder.parameters()):
-        if toPrintInfo:
-            print("%d-th layer:" % i)
-            # print(name)
-            print("param:")
-            print(param.shape)
-        reg_loss += torch.sum(torch.abs(param))
-    return reg_loss
-
-
-
-def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_train_Tensor,toMask,y_train_T_tensor,criterion,
-                         path,date,pth_name,toDebug):
-    loss_list = []
-    for epoch in range(num_epochs):
-        for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
-            # flatten the image
-            images = AE.to_var(images.view(images.size(0), -1))
-            images = images.float()
-            # forward
-            if len(datasetNameList) == 6:
-                out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
-
-            if toMask:
-                mask = y_train_T_tensor.ne(0.5)
-                y_masked = y_train_T_tensor * mask
-                if toDebug:
-                    print("DEBUG:y_train_T_tensor is:")
-                    print(y_train_T_tensor.shape)
-                    print("DEBUG: mask is:")
-                    print(mask.shape)
-                    print("DEBUG: y_masked is:")
-                    print(y_masked.shape)
-                y_masked_splited = torch.split(y_masked, 1, 1)
-                mask_splited = torch.split(mask, 1, 1)
-                if toDebug:
-                    print("len of y_masked_splited%d" % len(y_masked_splited))
-                    print("DEBUG: y_masked_splited is:")
-                    print(y_masked_splited[0].shape)
-                    print("DEBUG: mask_splited is:")
-                    print("len of mask_splited%d" % len(mask_splited))
-                    print(mask_splited[0].shape)
-                y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
-                loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
-                pred_loss_total_splited_sum = 0
-                loss_single_classifier = 0
-                for i in range(len(datasetNameList)):
-                    y_pred_masked_list.append(y_pred_list[i].T * (mask_splited[i].squeeze()).squeeze())
-                    loss_list.append(criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze()))
-                    pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),
-                                                             y_masked_splited[i].squeeze())
-            reg_loss = return_reg_loss(ae)
-            loss_single_classifier = pred_loss_total_splited_sum * 10000 + reg_loss * 0.0001
-            print(pth_name+" loss: %f" % loss_single_classifier.item())
-            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=1e-3)
-            optimizer.zero_grad()
-            loss_single_classifier.backward(retain_graph=True)
-            # loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
-            optimizer.step()
-            torch.save(ae, path + date + pth_name+".pth")#"single-classifier-trained.pth"
-    return ae,loss_list
-
-
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
-        toAddGenePathway=False, toAddGeneSite=False, multiDatasetMode='multi-task', datasetNameList=[],
-        num_of_selected_residue=1000, lossMode='reg_mean', selectNumPathwayMode='=num_gene',
-        num_of_selected_pathway=500, AE_epoch_from_main=1000, NN_epoch_from_main=1000,
-        batch_size_mode="ratio", batch_size_ratio=0.1, separatelyTrainAE_NN=True, toMask=True,
-        gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
+        toAddGenePathway=False,toAddGeneSite=False,multiDatasetMode='multi-task',datasetNameList=[],
+        num_of_selected_residue=1000,lossMode='reg_mean',selectNumPathwayMode = '=num_gene',
+        num_of_selected_pathway = 500,
+        AE_epoch_from_main=1000, NN_epoch_from_main=1000, separatelyTrainAE_NN=True,toMask=True,gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt",
         framework='keras'):
@@ -187,11 +114,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     if toAddGenePathway:
         # the following added 22-4-24 for go term pathway
         gene_pathway_csv_data = pd.read_csv(gene_pathway_dir, header=None, dtype='int')  # 防止弹出警告
-        pathway_name_data = pd.read_csv(pathway_name_dir,
-                                        header=None)  # , dtype='str', sep=',')#, header=0, dtype='str')
+        pathway_name_data = pd.read_csv(pathway_name_dir,header=None)#, dtype='str', sep=',')#, header=0, dtype='str')
         # pathway_name_data_df=pathway_name_data.values.tolist()
-        gene_name_data = pd.read_csv(gene_name_dir,
-                                     header=None)  # , dtype='str', sep=',')#, header=0, dtype='str', sep=',')
+        gene_name_data = pd.read_csv(gene_name_dir,header=None)#, dtype='str', sep=',')#, header=0, dtype='str', sep=',')
         # gene_name_data_df = gene_name_data.values.tolist()
         gene_pathway_df = pd.DataFrame(gene_pathway_csv_data)  # , columns=gene_name_data, index=pathway_name_data)
         print("INFO: gene_pathway_df=")
@@ -200,12 +125,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         print(pathway_name_data)
         print("INFO : gene_name_data")
         print(gene_name_data)
-        gene_pathway_df.index = pathway_name_data[0].values.tolist()
-        gene_pathway_df.columns = gene_name_data[0].values.tolist()  # .index.values.tolist()
+        gene_pathway_df.index=pathway_name_data[0].values.tolist()
+        gene_pathway_df.columns=gene_name_data[0].values.tolist()#.index.values.tolist()
         print("INFO: gene_pathway_df after adding column and index")
         print(gene_pathway_df)
-        # print("INFO: gene_pathway_df.index")
-        # print(gene_pathway_df.index.values.tolist())
+        #print("INFO: gene_pathway_df.index")
+        #print(gene_pathway_df.index.values.tolist())
         print("gene_pathway_df.loc['GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE']")
         print(gene_pathway_df.loc['GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE'])
         # genename_to_genepathway_index_map=
@@ -281,9 +206,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     print(selected_residue_train_data)
     data_train=selected_residue_train_data
     '''
-    # data_train_label_df.sort_values(by='pvalue',ascending=True)
-    # t_test_result.pvalue.sort()
-    toPrintInfo = False
+    #data_train_label_df.sort_values(by='pvalue',ascending=True)
+    #t_test_result.pvalue.sort()
+    toPrintInfo=False
     for (i, gene) in enumerate(gene_dict):
         count += 1
         if toPrintInfo:
@@ -346,54 +271,50 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
     if toAddGenePathway:
         gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])
-        gene_present_set = set(gene_present_list)
-        where_input_gene_is_not_in_go_term_set = gene_present_set.difference(
-            set(gene_pathway_df.columns.values.tolist()))
+        gene_present_set=set(gene_present_list)
+        where_input_gene_is_not_in_go_term_set=gene_present_set.difference(set(gene_pathway_df.columns.values.tolist()))
         print("where_input_gene_is_not_in_go_term_set")
         print(where_input_gene_is_not_in_go_term_set)
-        gene_pathway_df_with_input_gene = gene_pathway_df.loc[gene_pathway_df.apply(np.sum, axis=1) > 0]
-        gene_pathway_df_with_input_gene[list(where_input_gene_is_not_in_go_term_set)] = np.zeros(
-            (gene_pathway_df_with_input_gene.shape[0], len(where_input_gene_is_not_in_go_term_set)), dtype=np.int)
+        gene_pathway_df_with_input_gene=gene_pathway_df.loc[gene_pathway_df.apply(np.sum, axis=1) > 0 ]
+        gene_pathway_df_with_input_gene[list(where_input_gene_is_not_in_go_term_set)]=np.zeros((gene_pathway_df_with_input_gene.shape[0],len(where_input_gene_is_not_in_go_term_set)), dtype=np.int)
         print("gene_pathway_df_with_input_gene")
         print(gene_pathway_df_with_input_gene)
         print("selected present gene from go term:")
-        gene_pathway_df_with_only_present_gene = gene_pathway_df_with_input_gene[gene_present_list]
+        gene_pathway_df_with_only_present_gene=gene_pathway_df_with_input_gene[gene_present_list]
         print(gene_pathway_df_with_only_present_gene)
-        gene_pathway_needed = gene_pathway_df_with_only_present_gene.loc[
-            gene_pathway_df_with_only_present_gene.apply(np.sum, axis=1) > 0]
+        gene_pathway_needed=gene_pathway_df_with_only_present_gene.loc[gene_pathway_df_with_only_present_gene.apply(np.sum, axis=1) > 0 ]
         print(" remove rows that are all 0,gene_pathway_needed")
         print(gene_pathway_needed)
         gene_pathway_needed[list(where_input_gene_is_not_in_go_term_set)] = np.ones(
             (gene_pathway_needed.shape[0], len(where_input_gene_is_not_in_go_term_set)), dtype=np.int)
         print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene")
         print(gene_pathway_needed)
-        gene_pathway_needed['gene-pathway sum'] = gene_pathway_needed.apply(lambda x: sum(x), axis=1)
+        gene_pathway_needed['gene-pathway sum']=gene_pathway_needed.apply(lambda x:sum(x),axis=1)
         print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene,with connection sum")
         print(gene_pathway_needed)
-        gene_pathway_needed.sort_values(by='gene-pathway sum', ascending=False)
+        gene_pathway_needed.sort_values(by='gene-pathway sum',ascending=False)
         print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene,sorted by connection sum")
         print(gene_pathway_needed)
-        if selectNumPathwayMode == '=num_gene':
-            selected_pathway_num = gene_pathway_needed.shape[1]
-        elif selectNumPathwayMode == 'equal_difference':
-            selected_pathway_num = count_gene - (count_residue - count_gene)
-        elif selectNumPathwayMode == 'equal_difference':
-            selected_pathway_num = num_of_selected_pathway
-        gene_pathway_needed = gene_pathway_needed.iloc[:selected_pathway_num - 1, :-1]
-        print(
-            " remove rows that are all 0,gene_pathway_needed,add never exist input gene,sorted by connection sum,finally selected certain pathway:")
+        if selectNumPathwayMode=='=num_gene':
+            selected_pathway_num=gene_pathway_needed.shape[1]
+        elif selectNumPathwayMode=='equal_difference':
+            selected_pathway_num=count_gene-(count_residue-count_gene)
+        elif selectNumPathwayMode=='equal_difference':
+            selected_pathway_num=num_of_selected_pathway
+        gene_pathway_needed=gene_pathway_needed.iloc[:selected_pathway_num-1,:-1]
+        print(" remove rows that are all 0,gene_pathway_needed,add never exist input gene,sorted by connection sum,finally selected certain pathway:")
         print(gene_pathway_needed)
-        gene_pathway_needed_reversed = gene_pathway_needed.replace([1, 0], [0, 1]).values.tolist()
+        gene_pathway_needed_reversed=gene_pathway_needed.replace([1,0],[0,1]).values.tolist()
         print("gene_pathway_needed_reversed:")
-        print(gene_pathway_needed.replace([1, 0], [0, 1]))
+        print(gene_pathway_needed.replace([1,0],[0,1]))
         gene_pathway_needed.to_csv(
             path + date + "_" + code + "_gene_level" + "gene_pathway_needed).csv", sep='\t')
         import seaborn as sns
         import matplotlib.pylab as plt
-        heat_map_gene_pathway = sns.heatmap(gene_pathway_needed, linewidth=1, annot=False)
+        heat_map_gene_pathway = sns.heatmap( gene_pathway_needed, linewidth=1, annot=False)
         plt.title(path + date + 'multi-task-MeiNN gene-pathway known info HeatMap')
         plt.savefig(path + date + 'multi-task-MeiNN_gene_pathway_known_info_heatmap.png')
-        # plt.show()
+        #plt.show()
     ####################################
     if toAddGenePathway and False:
         gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])
@@ -437,9 +358,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         gene_pathway_present_gene_index = gene_pathway_csv_data.loc[:gene_present_index_list]
     # save the dictionary : following added 22-4-14
 
+
+
     np.save(
         path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt",
-        residuals_name)  # added 5-12
+        residuals_name)#added 5-12
     np.save(
         path + date + "_" + code + "_gene_level" + "_original_gene_to_id_map)" + ".txt",
         gene_to_id_map)
@@ -447,7 +370,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         path + date + "_" + code + "_gene_level" + "_original_residue_to_id_map)" + ".txt",
         residue_to_id_map)
 
-    print("len residue_to_id_map%d" % len(residue_to_id_map))
+    print("len residue_to_id_map%d"% len(residue_to_id_map))
     print("len gene_to_id_map%d" % len(gene_to_id_map))
     gene_to_residue_map = [[0 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
     gene_to_residue_map_reversed = [[1 for i in range(len(residue_to_id_map))] for i in range(len(gene_to_id_map))]
@@ -462,21 +385,21 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         count_connection += 1
 
     np.save(
-        path + date + "_" + code + "_gene_level" + "gene2residue_map)" + ".txt",
+        path + date + "_" + code + "_gene_level" +  "gene2residue_map)" + ".txt",
         gene_to_residue_map)
 
-    heat_map_gene_residue = sns.heatmap(gene_to_residue_map, linewidth=1, annot=False)
+    heat_map_gene_residue= sns.heatmap(gene_to_residue_map, linewidth=1, annot=False)
     plt.title(path + date + 'multi-task-MeiNN gene-residue known info HeatMap')
     plt.savefig(path + date + 'multi-task-MeiNN_gene_residue_known_info_heatmap.png')
-    # plt.show()
+    #plt.show()
     # above added 22-4-14
-    # gene_data_train_Tensor=gene_data_train
+    #gene_data_train_Tensor=gene_data_train
     gene_data_train = np.array(gene_data_train)  # added line on 2-3
-    gene_data_train_Tensor = torch.from_numpy(gene_data_train).float()
+    gene_data_train_Tensor=torch.from_numpy(gene_data_train).float()
     print("gene_data_train=")
     print(gene_data_train)
     np.save(
-        path + date + "_" + code + "gene_data_train)" + ".txt",
+        path + date + "_" + code +  "gene_data_train)" + ".txt",
         gene_data_train)
     # ae=None
     autoencoder = None
@@ -486,29 +409,24 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         latent_dim = HIDDEN_DIMENSION
         print("DEBUG INFO:we entered MeiNN code")
         if True or toTrainMeiNN:
-            if framework == 'keras':
+            if framework=='keras':
                 print("DEBUG INFO:we entered to train MeiNN keras code")
-                gene_data_train = np.load(path + date + "_" + code + "gene_data_train)" + ".txt.npy")
-                my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map,
-                                                                          gene_to_residue_map,
-                                                                          count_connection,
-                                                                          gene_to_residue_map_reversed,
-                                                                          gene_pathway_needed,
-                                                                          gene_pathway_needed_reversed)
+                gene_data_train=np.load(path + date + "_" + code + "gene_data_train)" + ".txt.npy")
+                my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map, gene_to_residue_map,
+                                                           count_connection, gene_to_residue_map_reversed,gene_pathway_needed,gene_pathway_needed_reversed)
                 myMeiNN = MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
-                                HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
-                                NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,
-                                model_dir='./results/models',
-                                gene_to_residue_or_pathway_info=my_gene_to_residue_info, toAddGeneSite=toAddGeneSite,
-                                toAddGenePathway=toAddGenePathway,
-                                multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode)
+                            HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
+                            NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
+                            gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                            toAddGenePathway=toAddGenePathway,
+                            multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
 
                 # myMeiNN.build()
                 myMeiNN.compile()
                 # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
                 myMeiNN.fit()
-            elif framework == 'pytorch':
-                myMeiNN = None
+            elif framework=='pytorch':
+                myMeiNN=None
                 print("DEBUG INFO:we entered to train MeiNN pytorch code")
                 gene_data_train = np.load(path + date + "_" + code + "gene_data_train)" + ".txt.npy")
                 my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map,
@@ -519,11 +437,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                                                           gene_pathway_needed_reversed)
                 ##########added from train_pytorch.py############
                 num_epochs = AE_epoch_from_main
-                if batch_size_mode == "ratio":
-                    batch_size = int(gene_data_train.shape[1] * batch_size_ratio)  # gene_data_train.shape[0]#100#809
-                else:
-                    batch_size = int(gene_data_train.shape[1])
-                # hidden_size = 10
+                batch_size = int(gene_data_train.shape[1])  # gene_data_train.shape[0]#100#809
+                #hidden_size = 10
                 dataset = gene_data_train.T  # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
                 # dataset = gene_data_train  # dsets.MNIST(root='../data',
 
@@ -538,106 +453,69 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 print("dataset.shape")
                 print(dataset.shape)
 
-                ae = AE.MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
-                              HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
-                              NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,
-                              model_dir='./results/models',
-                              gene_to_residue_or_pathway_info=my_gene_to_residue_info, toAddGeneSite=toAddGeneSite,
-                              toAddGenePathway=toAddGenePathway,
-                              multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode)
+                ae=AE.MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
+                            HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
+                            NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,model_dir='./results/models',
+                            gene_to_residue_or_pathway_info=my_gene_to_residue_info,toAddGeneSite=toAddGeneSite,
+                            toAddGenePathway=toAddGenePathway,
+                            multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
 
-                # ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
+                #ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
                 #                    h_dim=HIDDEN_DIMENSION)  # in_dim=gene_data_train.shape[1]
 
                 if torch.cuda.is_available():
                     ae.cuda()
 
-                criterion = nn.BCELoss()
+                criterion =nn.BCELoss()
                 optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
                 iter_per_epoch = len(data_loader)
                 data_iter = iter(data_loader)
 
                 # save fixed inputs for debugging
                 fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
-                # mydir = './data/'
+                #mydir = './data/'
                 # difine the directory to be created
-                mkpath = ".\\result\\%s" % date
+                mkpath = ".\\result\\%s"%date
                 mkdir(mkpath)
                 myfile = "t_img_bth%d.png" % (i + 1)
                 images_path = os.path.join(mkpath, myfile)
                 torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
                 fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
                 AE_loss_list = []
-                y_train_T_tensor = torch.from_numpy(y_train.T.values).float()
+                y_train_T_tensor=torch.from_numpy(y_train.T.values).float()
                 toPrintInfo = True
-
-                '''
-                class MultiTaskLossWrapper(nn.Module):
-                    def __init__(self, task_num):
-                        super(MultiTaskLossWrapper, self).__init__()
-                        self.task_num = task_num
-                        self.log_vars = nn.Parameter(torch.zeros((task_num)))
-
-                    def forward(self, y_preds,y_true):
-                        mse, crossEntropy = MSELossFlat(), CrossEntropyFlat()
-                        loss_sum=0
-                        for i,y_true_i in enumerate(y_true):
-                            loss[i]=crossEntropy(y_preds[i], y_true_i)
-                            loss_sum+=loss[i]
-                        return loss_sum
-
-                def acc_1(y_preds,y_true):
-                    return accuracy(y_preds[0],y_true[0])
-                def acc_2(y_preds,y_true):
-                    return accuracy(y_preds[1],y_true[1])
-                def acc_3(y_preds,y_true):
-                    return accuracy(y_preds[2],y_true[2])
-                def acc_4(y_preds,y_true):
-                    return accuracy(y_preds[3],y_true[3])
-                def acc_5(y_preds,y_true):
-                    return accuracy(y_preds[4],y_true[4])
-                def acc_6(y_preds,y_true):
-                    return accuracy(y_preds[5],y_true[5])
-                '''
-                #########22-8-2 fast.ai MTL demo####################
-                '''
-                metrics=[acc_1,acc_2,acc_3,acc_4,acc_5,acc_6]
-
-                data=DataBunch(gene_data_train_Tensor.T,)#x_valid
-                loss_func = MultiTaskLossWrapper(len(datasetNameList)).to(data)
-                learn = Learner(data,ae, loss_func=loss_func, callback_fns=ShowGraph, metrics=metrics)
-                learn.split([learn.model.encoder[:6],
-                             learn.model.encoder[6:],
-                             nn.ModuleList([learn.model.fc1, learn.model.fc2, learn.model.fc3])]);
-                learn.freeze()
-                '''
-                ##################################################
-                y_pred_list = None
                 for epoch in range(num_epochs):
-                    print("Now epoch:%d"%epoch)
                     t0 = time()
-                    for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+                    for i, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
                         # flatten the image
                         images = AE.to_var(images.view(images.size(0), -1))
                         images = images.float()
                         if toPrintInfo:
                             print("DEBUG INFO:before the input of model MeiNN")
                             print(images)
-                        # out,prediction,embedding = ae(images)
+                        #out,prediction,embedding = ae(images)
 
-                        out = None
-                        y_pred = None
+                        out=None
+                        y_pred=None
                         y_pred1 = None
                         y_pred2 = None
                         y_pred3 = None
                         y_pred4 = None
                         y_pred5 = None
                         y_pred6 = None
-                        embedding = None
+                        embedding=None
 
-
-
-                        if multiDatasetMode == "softmax":
+                        def return_reg_loss(ae):
+                            reg_loss = 0
+                            for i, param in enumerate(ae.parameters()):
+                                if toPrintInfo:
+                                    print("%d-th layer:" % i)
+                                    # print(name)
+                                    print("param:")
+                                    print(param.shape)
+                                reg_loss += torch.sum(torch.abs(param))
+                            return reg_loss
+                        if multiDatasetMode=="softmax":
                             out, y_pred, embedding = ae(gene_data_train_Tensor.T)
                             y_masked = y_train_T_tensor
                             y_pred_masked = y_pred
@@ -658,20 +536,19 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 reg_loss += torch.sum(torch.abs(param))
                             '''
                             print()
-                            reg_loss = return_reg_loss(ae)
+                            reg_loss=return_reg_loss(ae)
                             loss = reg_loss * 0.0001 + criterion(y_pred_masked, y_masked) * 10000 + criterion(out,
                                                                                                               images) * 1
 
-                        elif multiDatasetMode == "multi-task" or multiDatasetMode == "pretrain-finetune":
+                        elif multiDatasetMode=="multi-task":
                             y_pred_masked = y_pred
-                            y_masked = y_train_T_tensor
-                            y_pred_list = None
-                            if len(datasetNameList) == 6:
-                                # out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
+                            y_masked=y_train_T_tensor
+                            y_pred_list=None
+                            if len(datasetNameList)==6:
+                                #out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
                                 out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
-                            if len(datasetNameList) == 5:
-                                out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(
-                                    gene_data_train_Tensor.T)
+                            if len(datasetNameList)==5:
+                                out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(gene_data_train_Tensor.T)
                             '''
                             y_pred1_masked = y_pred1
                             y_pred2_masked = y_pred2
@@ -679,17 +556,16 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             y_pred4_masked = y_pred4
                             y_pred5_masked = y_pred5
                             y_pred6_masked = y_pred6'''
-                            '''
                             y_pred1 = y_pred_list[:,0]
                             y_pred2 = y_pred_list[:,1]
                             y_pred3 = y_pred_list[:,2]
                             y_pred4 = y_pred_list[:,3]
                             y_pred5 = y_pred_list[:,4]
-                            y_pred6 = y_pred_list[:,5]'''
+                            y_pred6 = y_pred_list[:,5]
                             print("DEBUG: y_pred_list is:")
-                            # print(y_pred_list.shape)
-                            print(len(y_pred_list[0]))
-                            # print(y_pred_list[:,0].shape)
+                            print(y_pred_list.shape)
+                            print(y_pred_list[0].shape)
+                            print(y_pred_list[:,0].shape)
 
                             if toMask:
                                 mask = y_train_T_tensor.ne(0.5)
@@ -698,46 +574,37 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 # y_pred_masked = torch.masked_select(prediction, mask)
                                 print("DEBUG:y_train_T_tensor is:")
                                 print(y_train_T_tensor.shape)
-                                # print(y_train_T_tensor)
+                                #print(y_train_T_tensor)
                                 print("DEBUG: mask is:")
                                 print(mask.shape)
-                                # print(mask)
+                                #print(mask)
                                 print("DEBUG: y_masked is:")
                                 print(y_masked.shape)
-                                # print(y_masked)
-                                # print("DEBUG:y_pred1 is:")
-                                # print(y_pred1.shape)
-                                # print(y_pred1)
+                                #print(y_masked)
+                                print("DEBUG:y_pred1 is:")
+                                print(y_pred1.shape)
+                                #print(y_pred1)
 
-                                y_masked_splited = torch.split(y_masked, 1, 1)
+                                y_masked_splited=torch.split(y_masked, 1, 1)
                                 mask_splited = torch.split(mask, 1, 1)
-                                print("len of y_masked_splited%d" % len(y_masked_splited))
+                                print("len of y_masked_splited%d"%len(y_masked_splited))
                                 print("DEBUG: y_masked_splited is:")
                                 print(y_masked_splited[0].shape)
-                                # print(y_masked_splited)
+                                #print(y_masked_splited)
                                 print("DEBUG: mask_splited is:")
                                 print("len of mask_splited%d" % len(mask_splited))
                                 print(mask_splited[0].shape)
-                                # print(mask_splited)
-                                y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
-                                loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
-                                pred_loss_total_splited_sum = 0
+                                #print(mask_splited)
+                                y_pred_masked_list=[y_pred_list[:,0]*len(datasetNameList)]
+                                loss_list=[]#[y_pred_list[:,0]*len(datasetNameList)]
                                 for i in range(len(datasetNameList)):
-                                    y_pred_masked_list.append(y_pred_list[i].T * (mask_splited[
-                                                                                      i].squeeze()).squeeze())  # y_pred_list[:,i]*mask_splited[i].squeeze())
-                                    loss_list.append(
-                                        criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze()))
-                                    pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),
-                                                                             y_masked_splited[
-                                                                                 i].squeeze())  # loss_list[i]
-                                    if toPrintInfo:
-                                        print("y_pred_masked_list[i]shape")
-                                        print(y_pred_masked_list[i].shape)
-                                        print("y_masked_splited[i].squeeze()shape")
-                                        print(y_masked_splited[i].squeeze().shape)
-                                        print("loss_list[%d]= %f" % (i, loss_list[i]))
-                                        print("pred_loss_total_splited_sum=%f" % pred_loss_total_splited_sum)
-                                '''
+                                    y_pred_masked_list[i]=y_pred_list[:,i]*mask_splited[i]
+                                    print("y_pred_masked_list[i]shape")
+                                    print(y_pred_masked_list[i].shape)
+                                    print("y_masked_splited[i].squeeze()shape")
+                                    print(y_masked_splited[i].squeeze().shape)
+                                    loss_list.append(criterion(y_pred_masked_list[i], y_masked_splited[i].squeeze()))
+                                    print("loss_list[%d]= %f"%(i,loss_list[i]))
                                 y_pred_masked1 = y_pred1 * mask_splited[0]
                                 y_pred_masked2 = y_pred2 * mask_splited[1]
                                 y_pred_masked3 = y_pred3 * mask_splited[2]
@@ -752,7 +619,6 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 loss6 = criterion(y_pred_masked6, y_masked_splited[5].squeeze())
                                 loss_total_splited_sum=loss1+loss2+loss3+loss4+loss5+loss6
                                 '''
-                                '''
                                 y_pred1_df=pd.DataFrame(y_pred1.detach().numpy())
                                 y_pred2_df = pd.DataFrame(y_pred2.detach().numpy())
                                 y_pred3_df = pd.DataFrame(y_pred3.detach().numpy())
@@ -761,8 +627,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 y_pred6_df = pd.DataFrame(y_pred6.detach().numpy())
                                 y_pred_df=pd.concat( [y_pred1_df, y_pred2_df, y_pred3_df, y_pred4_df, y_pred5_df, y_pred6_df],axis=1)
                                 '''
-                                '''
-                                y_pred=torch.cat([y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6],dim=0)
+                                y_pred=torch.cat([y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6],dim=1)
                                 print("y_pred after concat shape")
                                 print(y_pred.shape)
                                 #y_pred=torch.from_numpy(y_pred.to_numpy())
@@ -774,14 +639,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 print("y_pred_masked shape")
                                 print(y_pred_masked.shape)
                                 '''
-                                '''
                                 y_pred1_masked = y_pred_masked.iloc[:,0] #y_pred1 * mask
                                 y_pred2_masked = y_pred_masked.iloc[:,1] #y_pred2 * mask
                                 y_pred3_masked = y_pred_masked.iloc[:,2] #y_pred3 * mask
                                 y_pred4_masked = y_pred_masked.iloc[:,3] #y_pred4 * mask
                                 y_pred5_masked = y_pred_masked.iloc[:,4] #y_pred5 * mask
                                 y_pred6_masked = y_pred_masked.iloc[:,5] #y_pred6 * mask'''
-                                # [self.x_train, self.y_train.iloc[:, 0], self.y_train.iloc[:, 1],self.y_train.iloc[:, 2],
+                                #[self.x_train, self.y_train.iloc[:, 0], self.y_train.iloc[:, 1],self.y_train.iloc[:, 2],
                                 # self.y_train.iloc[:, 3], self.y_train.iloc[:, 4], self.y_train.iloc[:, 5]]
                             reg_loss = 0
                             '''
@@ -793,7 +657,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print(param.shape)
                                 reg_loss += torch.sum(torch.abs(param))'''
                             reg_loss = return_reg_loss(ae)
-                            # pred_loss = criterion(y_pred_masked, y_masked)
+
+                            pred_loss = criterion(y_pred_masked, y_masked)
+
                             '''
                             criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
                             criterion(y_pred2_masked, y_masked.iloc[:, 1]) +\
@@ -802,46 +668,47 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
-                            loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 10000 + criterion(out, images) * 1
+                            loss=reg_loss * 0.0001 + pred_loss * 10000 + criterion(out,images) * 1
 
-                        # loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
+                        #loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
 
                         def BCE_loss_masked(y_pred, y):
                             # y_pred:预测标签，已经过sigmoid/softmax处理 shape is (batch_size, 1)
                             # y：真实标签（一般为0或1） shape is (batch_size)
-                            mask = y.ne(0.5)
+                            mask= y.ne(0.5)
                             y_masked = torch.masked_select(y, mask)
                             y_pred_masked = torch.masked_select(y_pred, mask)
 
-                            y_pred_masked = torch.cat((1 - y_pred_masked, y_pred_masked),1)  # 将二种情况的概率都列出，y_hat形状变为(batch_size, 2)
+                            y_pred_masked = torch.cat((1 - y_pred_masked, y_pred_masked), 1)  # 将二种情况的概率都列出，y_hat形状变为(batch_size, 2)
                             # 按照y标定的真实标签，取出预测的概率，来计算损失
                             return - torch.log(y_pred_masked.gather(1, y_masked.view(-1, 1))).mean()
                             # 函数返回loss均值
+
+
 
                         optimizer.zero_grad()
                         loss.backward()
                         optimizer.step()
 
                         if toPrintInfo:
-                            print("y_pred_list[0].shape")
-                            print(y_pred_list[0].shape)
-                            # print(y_pred_list)
+                            print("prediction")
+                            print(y_pred.shape)
+                            print(y_pred)
                             print("y_train.T")
                             print(y_train.T.shape)
-                            # print(y_train.T)
-                            print("y_pred_masked_list[0] shape:")
-                            print(y_pred_masked_list[0].shape)
-                            # print(y_pred_masked_list)
+                            print(y_train.T)
+                            print("y_pred_masked:")
+                            print(y_pred_masked.shape)
+                            print(y_pred_masked)
                             print("y_masked")
                             print(y_masked.shape)
-                            # print(y_masked)
-                            toPrintInfo = False
-                        # y_pred_list=np.array(y_pred_list)
-                        print("reg_loss%f,ae loss%f,prediction loss-masked%f,prediction loss%f"
-                              % (reg_loss,criterion(out,images),pred_loss_total_splited_sum,criterion(torch.Tensor([item.cpu().detach().numpy() for item in y_pred_list]).squeeze().T, y_train_T_tensor)))
+                            print(y_masked)
+                            toPrintInfo=False
+                        print("reg_loss%f,ae loss%f,prediction loss-masked%f,prediction loss%f" % (reg_loss,
+                        criterion(out, images), criterion(y_pred_masked,y_masked),criterion(y_pred,y_train_T_tensor)))
 
-                        print("loss: %f" % loss.item())
-                        # print(loss.item())
+                        print("loss: %f"%loss.item())
+                        #print(loss.item())
                         AE_loss_list.append(loss.item())
 
                         if (i + 1) % 10 == 0:
@@ -852,113 +719,34 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     if (epoch + 1) % 1 == 0:
                         # save the reconstructed images
                         fixed_x = fixed_x.float()
-                        reconst_images, y_pred, embedding = ae(fixed_x)  # prediction
+                        reconst_images,y_pred,embedding = ae(fixed_x)#prediction
                         reconst_images = reconst_images.view(reconst_images.size(0), gene_data_train.shape[
                             0])  # reconst_images = reconst_images.view(reconst_images.size(0), 1, 28, 28)
-                        # mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
+                        #mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
                         mkpath = ".\\result\\%s" % date
                         mkdir(mkpath)
-                        myfile = 'rcnst_img_bt%d_ep%d.png' % (i + 1, (epoch + 1))
+                        myfile = 'rcnst_img_bt%d_ep%d.png' % ( i + 1, (epoch + 1))
                         reconst_images_path = os.path.join(mkpath, myfile)
                         torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
                     ##################
                     model = model_dict[model_type]()
-                for i, param in enumerate(ae.parameters()):
-                    print("%d-th layer:" % i)
-                    print("param:")
-                    print(param.shape)
                 torch.save({"epoch": num_epochs,  # 一共训练的epoch
-                            "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
-                            "optimizer": optimizer.state_dict()}, path + date + '.tar')
+                 "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
+                 "optimizer": optimizer.state_dict()}, path+date + '.tar')
 
-                torch.save(ae, path + date + '.pth')  # save the whole autoencoder network
+                torch.save(ae, path+date + '.pth')  # save the whole autoencoder network
                 AE_loss_list_df = pd.DataFrame(AE_loss_list)
-                AE_loss_list_df.to_csv(path + date + "_AE_loss_list).csv", sep='\t')
+                AE_loss_list_df.to_csv(path+date + "_AE_loss_list).csv",sep='\t')
                 if count == 1:
-                    with open(path + date + '_train_model_pytorch.pickle', 'wb') as f:
+                    with open(path+date + '_train_model_pytorch.pickle', 'wb') as f:
                         pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
                 else:
-                    with open(path + date + '_train_model_pytorch.pickle', 'ab') as f:
+                    with open(path+date + '_train_model_pytorch.pickle', 'ab') as f:
                         pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
 
-###################################pretrain-finetune##################################################
-                if multiDatasetMode == "pretrain-finetune":
-                    print("now we train single classifier:")
-                    pth_name="single-classifier-trained"
-                    loss_single_classifier_loss_list=[]#list([],[],[],[],[],[])
-                    for dataset_id, datasetName in enumerate(datasetNameList):
-                        print("The %d-th dataset"%dataset_id)
-                        for param in ae.parameters():
-                            param.requires_grad = False
-                        if dataset_id == 0:
-                            for param in ae.FCN1.parameters():
-                                param.requires_grad = True
-                        if dataset_id == 1:
-                            for param in ae.FCN2.parameters():
-                                param.requires_grad = True
-                        if dataset_id == 2:
-                            for param in ae.FCN3.parameters():
-                                param.requires_grad = True
-                        if dataset_id == 3:
-                            for param in ae.FCN4.parameters():
-                                param.requires_grad = True
-                        if dataset_id == 4:
-                            for param in ae.FCN5.parameters():
-                                param.requires_grad = True
-                        if dataset_id == 5:
-                            for param in ae.FCN6.parameters():
-                                param.requires_grad = True
-                        for epoch in range(num_epochs):
-                            for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
-                                # flatten the image
-                                images = AE.to_var(images.view(images.size(0), -1))
-                                images = images.float()
-                                #forward
-                                if len(datasetNameList) == 6:
-                                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
 
-                                if toMask:
-                                    mask = y_train_T_tensor.ne(0.5)
-                                    y_masked = y_train_T_tensor * mask
-                                    if toPrintInfo:
-                                        print("DEBUG:y_train_T_tensor is:")
-                                        print(y_train_T_tensor.shape)
-                                        print("DEBUG: mask is:")
-                                        print(mask.shape)
-                                        print("DEBUG: y_masked is:")
-                                        print(y_masked.shape)
-                                    y_masked_splited = torch.split(y_masked, 1, 1)
-                                    mask_splited = torch.split(mask, 1, 1)
-                                    if toPrintInfo:
-                                        print("len of y_masked_splited%d" % len(y_masked_splited))
-                                        print("DEBUG: y_masked_splited is:")
-                                        print(y_masked_splited[0].shape)
-                                        print("DEBUG: mask_splited is:")
-                                        print("len of mask_splited%d" % len(mask_splited))
-                                        print(mask_splited[0].shape)
-                                    y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
-                                    loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
-                                    pred_loss_total_splited_sum = 0
-                                    loss_single_classifier = 0
-                                    for i in range(len(datasetNameList)):
-                                        y_pred_masked_list.append(y_pred_list[i].T * (mask_splited[i].squeeze()).squeeze())
-                                        loss_list.append(criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze()))
-                                        pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),y_masked_splited[i].squeeze())
-                                reg_loss=return_reg_loss(ae)
-                                loss_single_classifier=pred_loss_total_splited_sum*10000+reg_loss*0.0001
-                                print(pth_name+"loss: %f" % loss_single_classifier.item())
-                                optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=1e-3)
-                                optimizer.zero_grad()
-                                loss_single_classifier.backward(retain_graph=True)
-                                #loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
-                                optimizer.step()
 
-                    torch.save(ae, path + date+pth_name+".pth")
 
-                    for param in ae.parameters():
-                        param.requires_grad = True
-                    single_train_process(num_epochs, data_loader, datasetNameList, ae, gene_data_train_Tensor, toMask,
-                                         y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False)
 
                 '''
                 myMeiNN = MeiNN_pytorch(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
@@ -973,6 +761,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 myMeiNN.compile()
                 # myMeiNN.fcn.fit(gene_data_train.T, y_train.T, epochs=NN_epoch_from_main, batch_size=79, shuffle=True)
                 myMeiNN.fit()'''
+
+
+
 
             if toAddGenePathway and False:
                 print("***************************")
@@ -1337,7 +1128,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
-    return myMeiNN, residuals_name
+    return myMeiNN,residuals_name
 
 
 def train_VAE(model, train_db, optimizer=tf.keras.optimizers.Adam(0.001), n_input=80):

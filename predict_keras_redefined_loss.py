@@ -359,7 +359,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                 if separatelyTrainAE_NN:
                     pass
                 else:
-                    if multiDatasetMode=='multi-task':
+                    if multiDatasetMode=='multi-task' or multiDatasetMode=='pretrain-finetune':
 
                         gene_data_test = np.array(gene_data_test)
                         hidden_size = 15
@@ -374,6 +374,8 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                                     multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
                         '''
                         model_ae = torch.load(path + date + '.pth')
+                        model_single_classifier_trained=torch.load( path + date + "single-classifier-trained.pth")
+                        model_finetune = torch.load(path + date + "finetune.pth")
                         # model_ae.load_state_dict(torch.load(path+date + '.tar'), strict=False)
                         # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
                         '''
@@ -395,12 +397,17 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         print(len(datasetNameList))
                         if len(datasetNameList) > 1 and len(datasetNameList) == 6:
                             #ae_out, [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6], _ = model_ae(gene_data_test.T)
-                            ae_out, pred_out_list, _ = model_ae(
-                                gene_data_test.T)
+                            ae_out, pred_out_list, _ = model_ae(gene_data_test.T)
+                            single_trained_ae_out, single_trained_pred_out_list, _ =model_single_classifier_trained(gene_data_test.T)
+                            finetune_ae_out, finetune_pred_out_list, _ = model_finetune(gene_data_test.T)
                             #[pred_out1, pred_out2, pred_out3, pred_out4, pred_out5, pred_out6]=pred_out_list
                             #for i in range(len(datasetNameList)):
                             print("prediction list is")
                             print(pred_out_list)
+                            print("single classifier trained prediction list is")
+                            print(single_trained_pred_out_list)
+                            print("finetune prediction list is")
+                            print(finetune_pred_out_list)
                             '''
                             print("prediction%d is" % 1)
 
@@ -419,10 +426,20 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             # data_test_pred = [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6]
                             # data_test_pred = pred_out
                             pred_out_list=torch.Tensor([item.cpu().detach().numpy() for item in pred_out_list]).squeeze().T
-                            
+                            single_trained_pred_out_list=torch.Tensor([item.cpu().detach().numpy() for item in single_trained_pred_out_list]).squeeze().T
+                            finetune_pred_out_list = torch.Tensor(
+                                [item.cpu().detach().numpy() for item in finetune_pred_out_list]).squeeze().T
+
                             data_test_pred = pd.DataFrame(pred_out_list.detach().numpy())
+                            single_trained_data_test_pred = pd.DataFrame(single_trained_pred_out_list.detach().numpy())
+                            finetune_data_test_pred = pd.DataFrame(finetune_pred_out_list.detach().numpy())
                             data_test_pred.to_csv(path + date + "_" + code +"separateAE-NN=" +
                                     str(separatelyTrainAE_NN) + "pred_list.txt", sep='\t')
+                            single_trained_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
+                                                  str(separatelyTrainAE_NN) + "pred_list_single_trained.txt", sep='\t')
+                            finetune_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
+                                                                 str(separatelyTrainAE_NN) + "pred_list_finetune.txt",
+                                                                 sep='\t')
                             '''
                             data_test_pred = pd.DataFrame(pred_out1.detach().numpy())
                             data_test_pred.to_csv(
@@ -452,6 +469,14 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             data_test_ae_out = pd.DataFrame(ae_out.detach().numpy())
                             data_test_ae_out.to_csv(
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
+                                sep='\t')
+                            single_trained_ae_out = pd.DataFrame(single_trained_ae_out.detach().numpy())
+                            single_trained_ae_out.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
+                                sep='\t')
+                            finetune_ae_out = pd.DataFrame(finetune_ae_out.detach().numpy())
+                            finetune_ae_out.to_csv(
+                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
                                 sep='\t')
                     else:
                         gene_data_test = np.array(gene_data_test)

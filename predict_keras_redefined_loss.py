@@ -40,6 +40,65 @@ def radical_data(data):
 def cube_data(data):
     return data ** 3
 
+def evaluate_accuracy(datasetNameList,Y_test,pred_out,toPrint=True):
+    normalized_pred_out = [[0] * len(datasetNameList) for i in range(len(pred_out))]
+    num_wrong_pred = 0
+    if len(datasetNameList) > 1:
+        for i, item in enumerate(pred_out):
+            for i_dataset, datasetName in enumerate(datasetNameList):
+                if item[i_dataset] >= 0.5:
+                    normalized_pred_out[i_dataset][i] = 1
+                    num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                elif item[i_dataset] < 0.5:
+                    normalized_pred_out[i_dataset][i] = 0
+                    num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+    elif len(datasetNameList) == 1:
+        for i, item in enumerate(pred_out):
+            if item >= 0.5:
+                normalized_pred_out.append(1)
+                num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+            elif item < 0.5:
+                normalized_pred_out.append(0)
+                num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+    if toPrint:
+        print("num of wrong prediction")
+        print(num_wrong_pred)
+        print("num of test total")
+        print(len(Y_test))
+        print("accuracy")
+        print(1.0 - num_wrong_pred / len(Y_test))
+    return normalized_pred_out,num_wrong_pred,1.0 - num_wrong_pred / len(Y_test)
+
+
+def evaluate_accuracy_list(datasetNameList,Y_test,pred_out,toPrint=True):
+    normalized_pred_out = [[0] * len(datasetNameList) for i in range(len(pred_out))]
+    num_wrong_pred = 0
+    if len(datasetNameList) > 1:
+        for i, item in enumerate(pred_out):
+            for i_dataset, datasetName in enumerate(datasetNameList):
+                if item[i_dataset] >= 0.5:
+                    normalized_pred_out[i_dataset][i] = 1
+                    num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                elif item[i_dataset] < 0.5:
+                    normalized_pred_out[i_dataset][i] = 0
+                    num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+    elif len(datasetNameList) == 1:
+        for i, item in enumerate(pred_out):
+            if item >= 0.5:
+                normalized_pred_out.append(1)
+                num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+            elif item < 0.5:
+                normalized_pred_out.append(0)
+                num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+    if toPrint:
+        print("num of wrong prediction")
+        print(num_wrong_pred)
+        print("num of test total")
+        print(len(Y_test))
+        print("accuracy")
+        print(1.0 - num_wrong_pred / len(Y_test))
+    return normalized_pred_out, num_wrong_pred, 1.0 - num_wrong_pred / len(Y_test)
+
 
 def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,HIDDEN_DIMENSION, toTrainMeiNN,
             model,predict_model_type,residue_name_list=[],
@@ -324,25 +383,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             sep='\t')
                         # print('prediction Test score:', score_pred[0])
                         # print('prediction Test accuracy:', score_pred[1])
-                        normalized_pred_out = [[0] * len(datasetNameList) for i in range(len(pred_out))]
-                        num_wrong_pred = 0
-                        if len(datasetNameList) > 1:
-                            for i, item in enumerate(pred_out):
-                                for i_dataset, datasetName in enumerate(datasetNameList):
-                                    if item[i_dataset] >= 0.5:
-                                        normalized_pred_out[i_dataset][i] = 1
-                                        num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
-                                    elif item[i_dataset] < 0.5:
-                                        normalized_pred_out[i_dataset][i] = 0
-                                        num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
-                        elif len(datasetNameList) == 1:
-                            for i, item in enumerate(pred_out):
-                                if item >= 0.5:
-                                    normalized_pred_out.append(1)
-                                    num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
-                                elif item < 0.5:
-                                    normalized_pred_out.append(0)
-                                    num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+                        normalized_pred_out,num_wrong_pred,accuracy=evaluate_accuracy(datasetNameList, Y_test, pred_out)
 
                     print("normalized pred_out=")
                     print(normalized_pred_out)
@@ -373,9 +414,11 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                                     toAddGenePathway=toAddGenePathway,
                                     multiDatasetMode=multiDatasetMode,datasetNameList=datasetNameList,lossMode=lossMode)
                         '''
+
                         model_ae = torch.load(path + date + '.pth')
-                        model_single_classifier_trained=torch.load( path + date + "single-classifier-trained.pth")
-                        model_finetune = torch.load(path + date + "finetune.pth")
+                        if multiDatasetMode=='pretrain-finetune':
+                            model_single_classifier_trained=torch.load( path + date + "single-classifier-trained.pth")
+                            model_finetune = torch.load(path + date + "finetune.pth")
                         # model_ae.load_state_dict(torch.load(path+date + '.tar'), strict=False)
                         # model=AE.Autoencoder(in_dim=gene_data_test.shape[1], h_dim=hidden_size)
                         '''
@@ -398,16 +441,23 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         if len(datasetNameList) > 1 and len(datasetNameList) == 6:
                             #ae_out, [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6], _ = model_ae(gene_data_test.T)
                             ae_out, pred_out_list, _ = model_ae(gene_data_test.T)
-                            single_trained_ae_out, single_trained_pred_out_list, _ =model_single_classifier_trained(gene_data_test.T)
-                            finetune_ae_out, finetune_pred_out_list, _ = model_finetune(gene_data_test.T)
+                            if multiDatasetMode == 'pretrain-finetune':
+                                single_trained_ae_out, single_trained_pred_out_list, _ =model_single_classifier_trained(gene_data_test.T)
+                                finetune_ae_out, finetune_pred_out_list, _ = model_finetune(gene_data_test.T)
                             #[pred_out1, pred_out2, pred_out3, pred_out4, pred_out5, pred_out6]=pred_out_list
                             #for i in range(len(datasetNameList)):
                             print("prediction list is")
                             print(pred_out_list)
-                            print("single classifier trained prediction list is")
-                            print(single_trained_pred_out_list)
-                            print("finetune prediction list is")
-                            print(finetune_pred_out_list)
+                            normalized_pred_out_, num_wrong_pred_, accuracy_ = evaluate_accuracy_list(datasetNameList,Y_test, pred_out_list)
+                            if multiDatasetMode == 'pretrain-finetune':
+                                print("single classifier trained prediction list is")
+                                print(single_trained_pred_out_list)
+                                single_trained_normalized_pred_out, single_trained_num_wrong_pred, single_trained_accuracy = evaluate_accuracy_list(datasetNameList,
+                                                                                                  Y_test, single_trained_pred_out_list)
+                                print("finetune prediction list is")
+                                print(finetune_pred_out_list)
+                                finetune_normalized_pred_out, finetune_num_wrong_pred, finetune_accuracy = evaluate_accuracy_list(datasetNameList,
+                                    Y_test, single_trained_pred_out_list)
                             '''
                             print("prediction%d is" % 1)
 
@@ -426,18 +476,22 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             # data_test_pred = [pred_out1,pred_out2,pred_out3,pred_out4,pred_out5,pred_out6]
                             # data_test_pred = pred_out
                             pred_out_list=torch.Tensor([item.cpu().detach().numpy() for item in pred_out_list]).squeeze().T
-                            single_trained_pred_out_list=torch.Tensor([item.cpu().detach().numpy() for item in single_trained_pred_out_list]).squeeze().T
-                            finetune_pred_out_list = torch.Tensor(
-                                [item.cpu().detach().numpy() for item in finetune_pred_out_list]).squeeze().T
+                            if multiDatasetMode == 'pretrain-finetune':
+                                single_trained_pred_out_list=torch.Tensor([item.cpu().detach().numpy() for item in single_trained_pred_out_list]).squeeze().T
+                                finetune_pred_out_list = torch.Tensor(
+                                    [item.cpu().detach().numpy() for item in finetune_pred_out_list]).squeeze().T
 
                             data_test_pred = pd.DataFrame(pred_out_list.detach().numpy())
-                            single_trained_data_test_pred = pd.DataFrame(single_trained_pred_out_list.detach().numpy())
-                            finetune_data_test_pred = pd.DataFrame(finetune_pred_out_list.detach().numpy())
+                            if multiDatasetMode=='pretrain-finetune':
+                                single_trained_data_test_pred = pd.DataFrame(single_trained_pred_out_list.detach().numpy())
+                                finetune_data_test_pred = pd.DataFrame(finetune_pred_out_list.detach().numpy())
+
                             data_test_pred.to_csv(path + date + "_" + code +"separateAE-NN=" +
                                     str(separatelyTrainAE_NN) + "pred_list.txt", sep='\t')
-                            single_trained_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
+                            if multiDatasetMode=='pretrain-finetune':
+                                single_trained_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
                                                   str(separatelyTrainAE_NN) + "pred_list_single_trained.txt", sep='\t')
-                            finetune_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
+                                finetune_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
                                                                  str(separatelyTrainAE_NN) + "pred_list_finetune.txt",
                                                                  sep='\t')
                             '''
@@ -470,14 +524,15 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             data_test_ae_out.to_csv(
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
                                 sep='\t')
-                            single_trained_ae_out = pd.DataFrame(single_trained_ae_out.detach().numpy())
-                            single_trained_ae_out.to_csv(
-                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
-                                sep='\t')
-                            finetune_ae_out = pd.DataFrame(finetune_ae_out.detach().numpy())
-                            finetune_ae_out.to_csv(
-                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
-                                sep='\t')
+                            if multiDatasetMode=='pretrain-finetune':
+                                single_trained_ae_out = pd.DataFrame(single_trained_ae_out.detach().numpy())
+                                single_trained_ae_out.to_csv(
+                                    path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
+                                    sep='\t')
+                                finetune_ae_out = pd.DataFrame(finetune_ae_out.detach().numpy())
+                                finetune_ae_out.to_csv(
+                                    path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
+                                    sep='\t')
                     else:
                         gene_data_test = np.array(gene_data_test)
                         hidden_size = 15

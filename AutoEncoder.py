@@ -158,6 +158,243 @@ class Autoencoder(nn.Module):
         return out
 
 
+class DownsampleLayer(nn.Module):
+    def __init__(self,in_ch,out_ch):
+        super(DownsampleLayer, self).__init__()
+        self.Conv_BN_ReLU_2=nn.Sequential(
+            nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=1,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+        self.downsample=nn.Sequential(
+            nn.Conv2d(in_channels=out_ch,out_channels=out_ch,kernel_size=3,stride=2,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+
+    def forward(self,x):
+        """
+        :param x:
+        :return: out output to deeper layer，out_2 as input to next layer，
+        """
+        out=self.Conv_BN_ReLU_2(x)
+        out_2=self.downsample(out)
+        return out,out_2
+
+
+class MeiNN_DownsampleLayer(nn.Module):
+    def __init__(self,in_ch,out_ch):
+        super(MeiNN_DownsampleLayer, self).__init__()
+        latent_dim=out_ch
+        in_dim=in_ch
+        mid_dim = int(math.sqrt(latent_dim * in_dim))
+        q1_dim = int(math.sqrt(latent_dim * mid_dim))
+        q3_dim = int(math.sqrt(mid_dim * in_dim))
+        encoder_dims = [in_dim,q3_dim,mid_dim,q1_dim, latent_dim]
+        self.encoder = nn.Sequential(
+            nn.Linear(encoder_dims[0], encoder_dims[1]),
+            nn.ReLU(),
+            nn.Linear(encoder_dims[1], encoder_dims[2]),
+            nn.ReLU(),
+            nn.Linear(encoder_dims[2], encoder_dims[3]),
+            nn.ReLU(),  # nn.Sigmoid()
+            nn.Linear(encoder_dims[3], encoder_dims[4]),
+            nn.ReLU()   #nn.Sigmoid()
+        )
+        self.Conv_BN_ReLU_2=nn.Sequential(
+            nn.Conv2d(in_channels=in_ch,out_channels=out_ch,kernel_size=3,stride=1,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+        self.downsample=nn.Sequential(
+            nn.Conv2d(in_channels=out_ch,out_channels=out_ch,kernel_size=3,stride=2,padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+
+    def forward(self,x):
+        """
+        :param x:
+        :return: out output to deeper layer，out_2 as input to next layer，
+        """
+        out=self.Conv_BN_ReLU_2(x)
+        out_2=self.downsample(out)
+        return out,out_2
+
+
+
+class UpSampleLayer(nn.Module):
+    def __init__(self,in_ch,out_ch):
+        # 512-1024-512
+        # 1024-512-256
+        # 512-256-128
+        # 256-128-64
+        super(UpSampleLayer, self).__init__()
+
+        self.Conv_BN_ReLU_2 = nn.Sequential(
+            nn.Conv2d(in_channels=in_ch, out_channels=out_ch*2, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch*2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=out_ch*2, out_channels=out_ch*2, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch*2),
+            nn.ReLU()
+        )
+        self.upsample=nn.Sequential(
+            nn.ConvTranspose2d(in_channels=out_ch*2,out_channels=out_ch,kernel_size=3,stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+
+    def forward(self,x,out):
+        '''
+        :param x: input convolution layer
+        :param out: cat with upSampling layer
+        :return:
+        '''
+        x_out=self.Conv_BN_ReLU_2(x)
+        x_out=self.upsample(x_out)
+        cat_out=torch.cat((x_out,out),dim=1)
+        return cat_out
+
+
+
+class MeiNN_UpSampleLayer(nn.Module):
+    def __init__(self,in_ch,out_ch):
+        # 512-1024-512
+        # 1024-512-256
+        # 512-256-128
+        # 256-128-64
+        super(MeiNN_UpSampleLayer, self).__init__()
+
+        self.Conv_BN_ReLU_2 = nn.Sequential(
+            nn.Conv2d(in_channels=in_ch, out_channels=out_ch*2, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch*2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=out_ch*2, out_channels=out_ch*2, kernel_size=3, stride=1,padding=1),
+            nn.BatchNorm2d(out_ch*2),
+            nn.ReLU()
+        )
+        self.upsample=nn.Sequential(
+            nn.ConvTranspose2d(in_channels=out_ch*2,out_channels=out_ch,kernel_size=3,stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+
+    def forward(self,x,out):
+        '''
+        :param x: input convolution layer
+        :param out: cat with upSampling layer
+        :return:
+        '''
+        x_out=self.Conv_BN_ReLU_2(x)
+        x_out=self.upsample(x_out)
+        cat_out=torch.cat((x_out,out),dim=1)
+        return cat_out
+
+class UNet(nn.Module):
+    def __init__(self):
+        super(UNet, self).__init__()
+        out_channels=[2**(i+6) for i in range(5)] #[64, 128, 256, 512, 1024]
+        #downSampling
+        self.d1=DownsampleLayer(3,out_channels[0])#3-64
+        self.d2=DownsampleLayer(out_channels[0],out_channels[1])#64-128
+        self.d3=DownsampleLayer(out_channels[1],out_channels[2])#128-256
+        self.d4=DownsampleLayer(out_channels[2],out_channels[3])#256-512
+        #upSampling
+        self.u1=UpSampleLayer(out_channels[3],out_channels[3])#512-1024-512
+        self.u2=UpSampleLayer(out_channels[4],out_channels[2])#1024-512-256
+        self.u3=UpSampleLayer(out_channels[3],out_channels[1])#512-256-128
+        self.u4=UpSampleLayer(out_channels[2],out_channels[0])#256-128-64
+        #输出
+        self.o=nn.Sequential(
+            nn.Conv2d(out_channels[1],out_channels[0],kernel_size=3,stride=1,padding=1),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.ReLU(),
+            nn.Conv2d(out_channels[0], out_channels[0], kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.ReLU(),
+            nn.Conv2d(out_channels[0],3,3,1,1),
+            nn.Sigmoid(),
+            # BCELoss
+        )
+    def forward(self,x):
+        out_1,out1=self.d1(x)
+        out_2,out2=self.d2(out1)
+        out_3,out3=self.d3(out2)
+        out_4,out4=self.d4(out3)
+        out5=self.u1(out4,out_4)
+        out6=self.u2(out5,out_3)
+        out7=self.u3(out6,out_2)
+        out8=self.u4(out7,out_1)
+        out=self.o(out8)
+        return out
+
+class MeiNN_UNet(nn.Module):
+    def __init__(self,in_dim,gene_layer_dim,latent_dim):
+        super(MeiNN_UNet, self).__init__()
+        out_channels=[2**(i+6) for i in range(5)] #[64, 128, 256, 512, 1024]
+
+        mid_dim = int(math.sqrt(latent_dim * in_dim))
+        q1_dim = int(math.sqrt(latent_dim * mid_dim))
+        q3_dim = int(math.sqrt(mid_dim * in_dim))
+        encoder_dims = [in_dim,q3_dim,mid_dim,q1_dim, latent_dim]
+        decoder_dims = [latent_dim,gene_layer_dim,in_dim]
+        self.encoder = nn.Sequential(
+            nn.Linear(encoder_dims[0], encoder_dims[1]),
+            nn.ReLU(),
+            nn.Linear(encoder_dims[1], encoder_dims[2]),
+            nn.ReLU(),
+            nn.Linear(encoder_dims[2], encoder_dims[3]),
+            nn.ReLU(),  # nn.Sigmoid()
+            nn.Linear(encoder_dims[3], encoder_dims[4]),
+            nn.ReLU()   #nn.Sigmoid()
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(decoder_dims[0], decoder_dims[1]),
+            nn.ReLU(),
+            nn.Linear(decoder_dims[1], decoder_dims[2]),
+            nn.Sigmoid()#nn.Tanh()
+            )
+        #downSampling
+        self.d1=DownsampleLayer(3,out_channels[0])#3-64
+        self.d2=DownsampleLayer(out_channels[0],out_channels[1])#64-128
+        self.d3=DownsampleLayer(out_channels[1],out_channels[2])#128-256
+        self.d4=DownsampleLayer(out_channels[2],out_channels[3])#256-512
+        #upSampling
+        self.u1=UpSampleLayer(out_channels[3],out_channels[3])#512-1024-512
+        self.u2=UpSampleLayer(out_channels[4],out_channels[2])#1024-512-256
+        self.u3=UpSampleLayer(out_channels[3],out_channels[1])#512-256-128
+        self.u4=UpSampleLayer(out_channels[2],out_channels[0])#256-128-64
+        #输出
+        self.o=nn.Sequential(
+            nn.Conv2d(out_channels[1],out_channels[0],kernel_size=3,stride=1,padding=1),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.ReLU(),
+            nn.Conv2d(out_channels[0], out_channels[0], kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.ReLU(),
+            nn.Conv2d(out_channels[0],3,3,1,1),
+            nn.Sigmoid(),
+            # BCELoss
+        )
+    def forward(self,x):
+        out_1,out1=self.d1(x)
+        out_2,out2=self.d2(out1)
+        out_3,out3=self.d3(out2)
+        out_4,out4=self.d4(out3)
+        out5=self.u1(out4,out_4)
+        out6=self.u2(out5,out_3)
+        out7=self.u3(out6,out_2)
+        out8=self.u4(out7,out_1)
+        out=self.o(out8)
+        return out
+
 class MeiNN(nn.Module):
     def __init__(self, config, path, date, code, X_train, y_train, platform, model_type, data_type,
                  HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=1000, NN_epoch_from_main=1000,
@@ -166,7 +403,7 @@ class MeiNN(nn.Module):
                  train_dataset_filename=r"./dataset/data_train.txt", train_label_filename=r"./dataset/label_train.txt",
                  gene_to_site_dir=r"./platform.json", gene_to_residue_or_pathway_info=None,
                  toAddGeneSite=True, toAddGenePathway=True,
-                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean'):
+                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean',skip_connection_mode="unet"):
         super(MeiNN, self).__init__()
         self.outputSet = []
         # self.modelSet=[]
@@ -259,6 +496,7 @@ class MeiNN(nn.Module):
 
         q1_dim = int(math.sqrt(latent_dim * mid_dim))
         #self.FCN=[]
+
         #for i in range(len(self.datasetNameList)):
         self.FCN1=nn.Sequential(
                 nn.Linear(in_dim, q3_dim),
@@ -281,7 +519,8 @@ class MeiNN(nn.Module):
                                   nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
                                   nn.Linear(q1_dim, out_dim), nn.Sigmoid())
         self.FCN4 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
-                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
+                                  nn.Linear
+                                  (q3_dim, mid_dim), nn.ReLU(),
                                   nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
                                   nn.Linear(q1_dim, out_dim), nn.Sigmoid())
         self.FCN5 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
@@ -318,7 +557,6 @@ class MeiNN(nn.Module):
                 #pred_list=torch.cat([pred1,pred2,pred3,pred4,pred5,pred6],dim=1)
                 return out,pred_list,embedding
                 #return out,[pred1,pred2,pred3,pred4,pred5,pred6],embedding
-
         return out,pred,embedding
     def code(self,x):
         out = self.encoder(x)

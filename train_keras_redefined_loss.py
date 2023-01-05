@@ -178,7 +178,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt",
-        framework='keras'):
+        framework='keras',skip_connection_mode="unet"):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
@@ -501,7 +501,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 model_dir='./results/models',
                                 gene_to_residue_or_pathway_info=my_gene_to_residue_info, toAddGeneSite=toAddGeneSite,
                                 toAddGenePathway=toAddGenePathway,
-                                multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode)
+                                multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode,skip_connection_mode="unet")
 
                 # myMeiNN.build()
                 myMeiNN.compile()

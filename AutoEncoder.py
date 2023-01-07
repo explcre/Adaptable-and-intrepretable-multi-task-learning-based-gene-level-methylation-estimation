@@ -16,6 +16,7 @@ from time import time
 
 #from AE import *
 
+#tensorboard visualization
 def origin_data(data):
     return data
 

@@ -170,7 +170,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
     num_of_selected_residue_list = [2000, 2000, 2000]
     h_dim = 60 * len(datasetNameList)
 
-    date = '23-1-4--cache-ft-p-m-pde4-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%f-skpcnt%s' % (
+    date = '23-1-6--cache-ft-p-m-pde4-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%f-skpcnt%s' % (
         (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
         lossMode,
         separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode)

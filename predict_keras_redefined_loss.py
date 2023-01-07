@@ -48,56 +48,83 @@ def evaluate_accuracy(datasetNameList,Y_test,pred_out,toPrint=True):
             for i_dataset, datasetName in enumerate(datasetNameList):
                 if item[i_dataset] >= 0.5:
                     normalized_pred_out[i_dataset][i] = 1
-                    num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                    num_wrong_pred += round(abs(Y_test[i_dataset].iloc[i] - 1.0))
                 elif item[i_dataset] < 0.5:
                     normalized_pred_out[i_dataset][i] = 0
-                    num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+                    num_wrong_pred += round(abs(Y_test[i_dataset].iloc[i] - 0.0))
     elif len(datasetNameList) == 1:
         for i, item in enumerate(pred_out):
             if item >= 0.5:
                 normalized_pred_out.append(1)
-                num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                num_wrong_pred += round(abs(Y_test[0].iloc[i] - 1.0))
             elif item < 0.5:
                 normalized_pred_out.append(0)
-                num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+                num_wrong_pred += round(abs(Y_test[0].iloc[i] - 0.0))
     if toPrint:
         print("num of wrong prediction")
         print(num_wrong_pred)
         print("num of test total")
-        print(len(Y_test))
+        print(len(Y_test[0]))
         print("accuracy")
-        print(1.0 - num_wrong_pred / len(Y_test))
-    return normalized_pred_out,num_wrong_pred,1.0 - num_wrong_pred / len(Y_test)
+        print(1.0 - num_wrong_pred / len(Y_test[0]))
+    return normalized_pred_out,num_wrong_pred,1.0 - num_wrong_pred / len(Y_test[0])
 
 
 def evaluate_accuracy_list(datasetNameList,Y_test,pred_out,toPrint=True):
-    normalized_pred_out = [[0] * len(datasetNameList) for i in range(len(pred_out))]
+    normalized_pred_out = pred_out#[[0] * len(datasetNameList) for i in range(len(pred_out))]
     num_wrong_pred = 0
+    num_wrong_pred_each_dataset=[0]*len(pred_out)
+    num_total_each_dataset = [0] * len(pred_out)
     if len(datasetNameList) > 1:
-        for i, item in enumerate(pred_out):
-            for i_dataset, datasetName in enumerate(datasetNameList):
-                if item[i_dataset] >= 0.5:
-                    normalized_pred_out[i_dataset][i] = 1
-                    num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
-                elif item[i_dataset] < 0.5:
-                    normalized_pred_out[i_dataset][i] = 0
-                    num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+        for i, predict_out_i in enumerate(pred_out):#i means i-th dataset
+            for j, pred_out_i_j in enumerate(predict_out_i):# j means j-th input dimension
+                if Y_test.iloc[i,j]!=0.5:#when the label is 0.5, it's not considered.
+                    num_total_each_dataset[i]+=1
+                    print("DEBUG:Y_test.iloc[%d,%d]!=0.5"%(i,j))
+                    print("DEBUG:Y_test.iloc[%d,%d]=%f"%(i,j,Y_test.iloc[i,j]))
+                    print("DEBUG:pred_out[%d,%d]=%f"%(i,j,pred_out[i][j]))
+
+                    normalized_pred_out[i][j] = 1.0 if pred_out[i][j]>=0.5 else 0.0
+                    num_wrong_pred += 1.0 if (abs(Y_test.iloc[i, j].item() - normalized_pred_out[i][j]))>=0.5 else 0.0
+                    num_wrong_pred_each_dataset[i] += 1.0 if (abs(Y_test.iloc[i, j].item() - normalized_pred_out[i][j])) else 0.0
+                    '''
+                    if pred_out_i_j >= 0.5:
+                        normalized_pred_out[i][j] = 1
+                        num_wrong_pred += round(abs(Y_test.iloc[i,j] - 1.0))
+                        num_wrong_pred_each_dataset[i] += round(abs(Y_test.iloc[i,j] - 1.0))
+                    elif pred_out_i_j < 0.5:
+                        normalized_pred_out[i][j] = 0
+                        num_wrong_pred += round(abs(Y_test.iloc[i,j] - 0.0))
+                        num_wrong_pred_each_dataset[i] += round(abs(Y_test.iloc[i, j] - 0.0))'''
     elif len(datasetNameList) == 1:
         for i, item in enumerate(pred_out):
             if item >= 0.5:
                 normalized_pred_out.append(1)
-                num_wrong_pred += round(abs(Y_test.iloc[i] - 1.0))
+                num_wrong_pred += round(abs(Y_test[0].iloc[i] - 1.0))
             elif item < 0.5:
                 normalized_pred_out.append(0)
-                num_wrong_pred += round(abs(Y_test.iloc[i] - 0.0))
+                num_wrong_pred += round(abs(Y_test[0].iloc[i] - 0.0))
     if toPrint:
+        print("Y_test")
+        print(Y_test.shape)
+        print(Y_test)
+        print("prediction")
+        #print(pred_out.shape)
+        #print(pred_out)
+        print(len(pred_out[0]))
+        print("for each dataset")
+        for i in range(len(pred_out)):
+            print("dataset %s"% datasetNameList[i])
+            print("total case %d"%num_total_each_dataset[i])
+            print("wrong prediction %d"%num_wrong_pred_each_dataset[i])
+            print("accuracy for this dataset=%f"% (1.0-num_wrong_pred_each_dataset[i]/num_total_each_dataset[i]))
         print("num of wrong prediction")
         print(num_wrong_pred)
         print("num of test total")
-        print(len(Y_test))
+        print(len(Y_test.iloc[0]))
         print("accuracy")
-        print(1.0 - num_wrong_pred / len(Y_test))
-    return normalized_pred_out, num_wrong_pred, 1.0 - num_wrong_pred / len(Y_test)
+        print(1.0 - num_wrong_pred / len(Y_test.iloc[0]))
+    return normalized_pred_out, num_wrong_pred, 1.0 - num_wrong_pred / len(Y_test.iloc[0])
 
 
 def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,HIDDEN_DIMENSION, toTrainMeiNN,

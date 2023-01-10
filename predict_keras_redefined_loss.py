@@ -19,8 +19,11 @@ from keras.models import load_model
 from keras.models import Model  # 泛型模型
 from MeiNN.config import config
 warnings.filterwarnings("ignore")
-
-
+import tools
+from tensorboardX import SummaryWriter
+import matplotlib.pyplot as plt
+logger = SummaryWriter(log_dir="tensorboard_log/")
+from sklearn.metrics import roc_curve, auc
 def origin_data(data):
     return data
 
@@ -39,6 +42,35 @@ def radical_data(data):
 
 def cube_data(data):
     return data ** 3
+
+def draw_roc(plot_title,y_test, y_score):
+    fpr, tpr, threshold = roc_curve(y_test, y_score)  ###计算真正率和假正率
+    roc_auc = auc(fpr, tpr)  ###计算auc的值
+
+    plt.figure()
+    lw = 2
+    plt.figure(figsize=(10, 10))
+    plt.plot(fpr, tpr, color='darkorange',
+             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)  ###假正率为横坐标，真正率为纵坐标做曲线
+    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(plot_title+'Receiver operating characteristic example')
+    plt.legend(loc="lower right")
+    plt.savefig(plot_title+'Receiver operating characteristic example'+".png")
+    plt.show()
+    figure=plt.imread(plot_title+'Receiver operating characteristic example'+".png")
+    #writer = SummaryWriter()
+    logger.add_figure(
+        plot_title+'Receiver operating characteristic example'+".png",
+        figure,
+        global_step=None,
+        close=False,
+        walltime=None)
+
+
 
 def evaluate_accuracy(datasetNameList,Y_test,pred_out,toPrint=True):
     normalized_pred_out = [[0] * len(datasetNameList) for i in range(len(pred_out))]
@@ -70,61 +102,6 @@ def evaluate_accuracy(datasetNameList,Y_test,pred_out,toPrint=True):
     return normalized_pred_out,num_wrong_pred,1.0 - num_wrong_pred / len(Y_test[0])
 
 
-def evaluate_accuracy_list(datasetNameList,Y_test,pred_out,toPrint=True):
-    normalized_pred_out = pred_out#[[0] * len(datasetNameList) for i in range(len(pred_out))]
-    num_wrong_pred = 0
-    num_wrong_pred_each_dataset=[0]*len(pred_out)
-    num_total_each_dataset = [0] * len(pred_out)
-    if len(datasetNameList) > 1:
-        for i, predict_out_i in enumerate(pred_out):#i means i-th dataset
-            for j, pred_out_i_j in enumerate(predict_out_i):# j means j-th input dimension
-                if Y_test.iloc[i,j]!=0.5:#when the label is 0.5, it's not considered.
-                    num_total_each_dataset[i]+=1
-                    print("DEBUG:Y_test.iloc[%d,%d]!=0.5"%(i,j))
-                    print("DEBUG:Y_test.iloc[%d,%d]=%f"%(i,j,Y_test.iloc[i,j]))
-                    print("DEBUG:pred_out[%d,%d]=%f"%(i,j,pred_out[i][j]))
-
-                    normalized_pred_out[i][j] = 1.0 if pred_out[i][j]>=0.5 else 0.0
-                    num_wrong_pred += 1.0 if (abs(Y_test.iloc[i, j].item() - normalized_pred_out[i][j]))>=0.5 else 0.0
-                    num_wrong_pred_each_dataset[i] += 1.0 if (abs(Y_test.iloc[i, j].item() - normalized_pred_out[i][j])) else 0.0
-                    '''
-                    if pred_out_i_j >= 0.5:
-                        normalized_pred_out[i][j] = 1
-                        num_wrong_pred += round(abs(Y_test.iloc[i,j] - 1.0))
-                        num_wrong_pred_each_dataset[i] += round(abs(Y_test.iloc[i,j] - 1.0))
-                    elif pred_out_i_j < 0.5:
-                        normalized_pred_out[i][j] = 0
-                        num_wrong_pred += round(abs(Y_test.iloc[i,j] - 0.0))
-                        num_wrong_pred_each_dataset[i] += round(abs(Y_test.iloc[i, j] - 0.0))'''
-    elif len(datasetNameList) == 1:
-        for i, item in enumerate(pred_out):
-            if item >= 0.5:
-                normalized_pred_out.append(1)
-                num_wrong_pred += round(abs(Y_test[0].iloc[i] - 1.0))
-            elif item < 0.5:
-                normalized_pred_out.append(0)
-                num_wrong_pred += round(abs(Y_test[0].iloc[i] - 0.0))
-    if toPrint:
-        print("Y_test")
-        print(Y_test.shape)
-        print(Y_test)
-        print("prediction")
-        #print(pred_out.shape)
-        #print(pred_out)
-        print(len(pred_out[0]))
-        print("for each dataset")
-        for i in range(len(pred_out)):
-            print("dataset %s"% datasetNameList[i])
-            print("total case %d"%num_total_each_dataset[i])
-            print("wrong prediction %d"%num_wrong_pred_each_dataset[i])
-            print("accuracy for this dataset=%f"% (1.0-num_wrong_pred_each_dataset[i]/num_total_each_dataset[i]))
-        print("num of wrong prediction")
-        print(num_wrong_pred)
-        print("num of test total")
-        print(len(Y_test.iloc[0]))
-        print("accuracy")
-        print(1.0 - num_wrong_pred / len(Y_test.iloc[0]))
-    return normalized_pred_out, num_wrong_pred, 1.0 - num_wrong_pred / len(Y_test.iloc[0])
 
 
 def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, data_type,HIDDEN_DIMENSION, toTrainMeiNN,
@@ -475,16 +452,18 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             #for i in range(len(datasetNameList)):
                             print("prediction list is")
                             print(pred_out_list)
-                            normalized_pred_out_, num_wrong_pred_, accuracy_ = evaluate_accuracy_list(datasetNameList,Y_test, pred_out_list)
+                            normalized_pred_out_, num_wrong_pred_, accuracy_,split_accuracy_list_ = tools.evaluate_accuracy_list(datasetNameList,Y_test, pred_out_list)
                             if multiDatasetMode == 'pretrain-finetune':
                                 print("single classifier trained prediction list is")
                                 print(single_trained_pred_out_list)
-                                single_trained_normalized_pred_out, single_trained_num_wrong_pred, single_trained_accuracy = evaluate_accuracy_list(datasetNameList,
+                                single_trained_normalized_pred_out, single_trained_num_wrong_pred, single_trained_accuracy,single_trained_split_accuracy_list = tools.evaluate_accuracy_list(datasetNameList,
                                                                                                   Y_test, single_trained_pred_out_list)
                                 print("finetune prediction list is")
                                 print(finetune_pred_out_list)
-                                finetune_normalized_pred_out, finetune_num_wrong_pred, finetune_accuracy = evaluate_accuracy_list(datasetNameList,
-                                    Y_test, single_trained_pred_out_list)
+                                finetune_normalized_pred_out, finetune_num_wrong_pred, finetune_accuracy,finetune_split_accuracy_list = tools.evaluate_accuracy_list(datasetNameList,
+                                    Y_test, finetune_pred_out_list)
+
+
                             '''
                             print("prediction%d is" % 1)
 
@@ -647,7 +626,12 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
 
 
     print("Predicting finish!")
-
+    '''
+    draw_roc(date + code + "1" , Y_test, pred_out_list)
+    draw_roc(date + code + "single", Y_test, single_trained_pred_out_list)
+    draw_roc(date + code + "whole", Y_test, finetune_pred_out_list)'''
+    if multiDatasetMode=="pretrain-finetune":
+        return accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_split_accuracy_list
 
 if __name__ == '__main__':
     # Parameter description：

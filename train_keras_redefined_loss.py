@@ -57,6 +57,10 @@ from keras.models import Model  # 泛型模型
 from keras.layers import Dense, Input
 from keras.models import load_model
 
+from tensorboardX import SummaryWriter
+import tools
+logger = SummaryWriter(log_dir="tensorboard_log/")
+
 warnings.filterwarnings("ignore")
 
 
@@ -103,7 +107,7 @@ def cube_data(data):
 
 
 toPrintInfo=False
-
+global_iter_num =0
 def return_reg_loss(ae):
     reg_loss = 0
     for i, param in enumerate(ae.decoder.parameters()):
@@ -118,7 +122,8 @@ def return_reg_loss(ae):
 
 
 def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_train_Tensor,toMask,y_train_T_tensor,criterion,
-                         path,date,pth_name,toDebug):
+                         path,date,pth_name,toDebug,global_iter_num,log_stage_name,code,toValidate,gene_data_valid_Tensor,valid_label,
+                         multi_task_training_policy,learning_rate_list):
     loss_list = []
     for epoch in range(num_epochs):
         for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
@@ -128,6 +133,9 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             # forward
             if len(datasetNameList) == 6:
                 out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                if toValidate:
+                    valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)#for validation
+
 
             if toMask:
                 mask = y_train_T_tensor.ne(0.5)
@@ -157,16 +165,36 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                     loss_list.append(criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze()))
                     pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),
                                                              y_masked_splited[i].squeeze())
+                    logger.add_scalar(date+code+" "+log_stage_name+": %d-th single dataset %s loss" % (i, datasetNameList[i]),
+                                      criterion(y_pred_masked_list[i].T.squeeze(),
+                                                y_masked_splited[i].squeeze()), global_step=global_iter_num)
             reg_loss = return_reg_loss(ae)
-            loss_single_classifier = pred_loss_total_splited_sum * 10000 + reg_loss * 0.0001
+            loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
             print(pth_name+" loss: %f" % loss_single_classifier.item())
-            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=1e-3)
+            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[2])#1e-3
             optimizer.zero_grad()
             loss_single_classifier.backward(retain_graph=True)
             # loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
             optimizer.step()
+
+            global_iter_num = epoch * len(
+                data_loader) + i_data_batch + 1  # calculate it's which step start from training
+            if toValidate:
+                normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                    datasetNameList, valid_label, valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
+                logger.add_scalar(date + code + " " + log_stage_name + ": total validation accuracy",
+                                  accuracy, global_step=global_iter_num)
+                for i in range(len(datasetNameList)):# added for validation data#2023-1-8
+                    logger.add_scalar(date + code + " " + log_stage_name + ": %d-th single dataset %s validation accuracy"%(i, datasetNameList[i]),
+                                      split_accuracy_list[i], global_step=global_iter_num)
+            logger.add_scalar(date+code+" "+log_stage_name+": autoencoder reconstruction loss", criterion(out, images), global_step=global_iter_num)
+            logger.add_scalar(date+code+" "+log_stage_name+": regularization loss", reg_loss, global_step=global_iter_num)
+            logger.add_scalar(date+code+" "+log_stage_name+": classifier predction loss", pred_loss_total_splited_sum, global_step=global_iter_num)
+            logger.add_scalar(date+code+" "+log_stage_name+": total train loss", loss_single_classifier.item(), global_step=global_iter_num)
+            for name, param in ae.named_parameters():
+                logger.add_histogram(date+code+" "+log_stage_name+": "+name, param.data.numpy(), global_step=global_iter_num)
             torch.save(ae, path + date + pth_name+".pth")#"single-classifier-trained.pth"
-    return ae,loss_list
+    return ae,loss_list,global_iter_num
 
 
 # Only train regression model, save parameters to pickle file
@@ -178,7 +206,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         gene_pathway_dir="./dataset/GO term pathway/matrix.csv",
         pathway_name_dir="./dataset/GO term pathway/gene_set.txt",
         gene_name_dir="./dataset/GO term pathway/genes.txt",
-        framework='keras',skip_connection_mode="unet"):
+        framework='keras',skip_connection_mode="unet",
+        toValidate=False,valid_data=None,valid_label=None,multi_task_training_policy="no",learning_rate_list=[1e-3,1e-3,1e-3]):
     data_dict = {'origin_data': origin_data, 'square_data': square_data, 'log_data': log_data,
                  'radical_data': radical_data, 'cube_data': cube_data}
     model_dict = {'LinearRegression': LinearRegression, 'LogisticRegression': LogisticRegression,
@@ -223,11 +252,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     print('Now start training gene...')
 
     data_train = data_dict[data_type](X_train)
+    data_valid = valid_data#data_dict[data_type](valid_data)
     print("data_train:")
     print(data_train)
     # print("gene_dict:")
     # print(gene_dict)
     gene_data_train = []
+    gene_data_valid = []
     residuals_name = []
     model = None
     count_gene = 0
@@ -236,6 +267,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     residue_to_id_map = {}
     gene_present_list = set()
     mode_all_gene_and_residue = False
+    global_iter_num=0
     '''
     data_train_df=pd.DataFrame(data_train)
     print("data_train_df=")
@@ -306,6 +338,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 if (residue not in (residuals_name)):  # added 2022-4-14
                     residuals_name.append(residue)
                     gene_data_train.append(data_train.loc[residue])
+                    gene_data_valid.append(data_valid.loc[residue])#added 2023-1-8
                 # following added 22-4-14
                 if not mode_all_gene_and_residue:
                     if gene not in gene_to_id_map:
@@ -317,6 +350,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         residue_to_id_map[residue] = count_residue  # added 22-4-14
                         count_residue += 1  # added 22-4-14
                         # gene_to_residue_map.append(1)
+
+        '''for residue in data_valid.index:#added 2023-1-8 for validation data
+            if residue in gene_dict[gene]:
+                if (residue not in (residuals_name)):  # added 2022-4-14
+                    residuals_name.append(residue)
+                    gene_data_valid.append(data_valid.loc[residue])'''
 
                 # above added 22-4-14
         if len(gene_data_train) == 0:
@@ -334,10 +373,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         # print(np.array(gene_data_train).shape[1])
 
         if count == 1:
-            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+            with open(path + date + "_" + code + "_train_model.pickle", 'wb') as f:#path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle'
                 pickle.dump((gene, model), f)
         else:
-            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+            with open(path + date + "_" + code + "_train_model.pickle", 'ab') as f:
                 pickle.dump((gene, model), f)
         if toPrintInfo:
             print('finish!')
@@ -377,7 +416,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             selected_pathway_num = gene_pathway_needed.shape[1]
         elif selectNumPathwayMode == 'equal_difference':
             selected_pathway_num = count_gene - (count_residue - count_gene)
-        elif selectNumPathwayMode == 'equal_difference':
+        elif selectNumPathwayMode == 'num':
             selected_pathway_num = num_of_selected_pathway
         gene_pathway_needed = gene_pathway_needed.iloc[:selected_pathway_num - 1, :-1]
         print(
@@ -473,6 +512,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     # gene_data_train_Tensor=gene_data_train
     gene_data_train = np.array(gene_data_train)  # added line on 2-3
     gene_data_train_Tensor = torch.from_numpy(gene_data_train).float()
+    gene_data_valid = np.array(gene_data_valid)  # added 2023-1-8
+    gene_data_valid_Tensor = torch.from_numpy(gene_data_valid).float()# added 2023-1-8
     print("gene_data_train=")
     print(gene_data_train)
     np.save(
@@ -553,7 +594,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     ae.cuda()
 
                 criterion = nn.BCELoss()
-                optimizer = torch.optim.Adam(ae.parameters(), lr=0.001)
+                optimizer = torch.optim.Adam(ae.parameters(), lr=learning_rate_list[0])#0.001
                 iter_per_epoch = len(data_loader)
                 data_iter = iter(data_loader)
 
@@ -669,6 +710,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             if len(datasetNameList) == 6:
                                 # out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
                                 out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                                if toValidate:
+                                    valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
                             if len(datasetNameList) == 5:
                                 out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(
                                     gene_data_train_Tensor.T)
@@ -686,9 +729,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             y_pred4 = y_pred_list[:,3]
                             y_pred5 = y_pred_list[:,4]
                             y_pred6 = y_pred_list[:,5]'''
-                            print("DEBUG: y_pred_list is:")
+                            if toPrintInfo:
+                                print("DEBUG: y_pred_list is:")
                             # print(y_pred_list.shape)
-                            print(len(y_pred_list[0]))
+                                print(len(y_pred_list[0]))
                             # print(y_pred_list[:,0].shape)
 
                             if toMask:
@@ -696,28 +740,30 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 # y_masked = torch.masked_select(y_train_T_tensor, mask)
                                 y_masked = y_train_T_tensor * mask
                                 # y_pred_masked = torch.masked_select(prediction, mask)
-                                print("DEBUG:y_train_T_tensor is:")
-                                print(y_train_T_tensor.shape)
-                                # print(y_train_T_tensor)
-                                print("DEBUG: mask is:")
-                                print(mask.shape)
-                                # print(mask)
-                                print("DEBUG: y_masked is:")
-                                print(y_masked.shape)
-                                # print(y_masked)
-                                # print("DEBUG:y_pred1 is:")
-                                # print(y_pred1.shape)
-                                # print(y_pred1)
+                                if toPrintInfo:
+                                    print("DEBUG:y_train_T_tensor is:")
+                                    print(y_train_T_tensor.shape)
+                                    # print(y_train_T_tensor)
+                                    print("DEBUG: mask is:")
+                                    print(mask.shape)
+                                    # print(mask)
+                                    print("DEBUG: y_masked is:")
+                                    print(y_masked.shape)
+                                    # print(y_masked)
+                                    # print("DEBUG:y_pred1 is:")
+                                    # print(y_pred1.shape)
+                                    # print(y_pred1)
 
                                 y_masked_splited = torch.split(y_masked, 1, 1)
                                 mask_splited = torch.split(mask, 1, 1)
-                                print("len of y_masked_splited%d" % len(y_masked_splited))
-                                print("DEBUG: y_masked_splited is:")
-                                print(y_masked_splited[0].shape)
-                                # print(y_masked_splited)
-                                print("DEBUG: mask_splited is:")
-                                print("len of mask_splited%d" % len(mask_splited))
-                                print(mask_splited[0].shape)
+                                if toPrintInfo:
+                                    print("len of y_masked_splited%d" % len(y_masked_splited))
+                                    print("DEBUG: y_masked_splited is:")
+                                    print(y_masked_splited[0].shape)
+                                    # print(y_masked_splited)
+                                    print("DEBUG: mask_splited is:")
+                                    print("len of mask_splited%d" % len(mask_splited))
+                                    print(mask_splited[0].shape)
                                 # print(mask_splited)
                                 y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                                 loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
@@ -730,6 +776,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),
                                                                              y_masked_splited[
                                                                                  i].squeeze())  # loss_list[i]
+                                    logger.add_scalar(date+code+" %d-th single dataset %s loss"%(i,datasetNameList[i]), criterion(y_pred_masked_list[i].T.squeeze(),
+                                                                             y_masked_splited[i].squeeze()), global_step=global_iter_num)
                                     if toPrintInfo:
                                         print("y_pred_masked_list[i]shape")
                                         print(y_pred_masked_list[i].shape)
@@ -793,6 +841,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print(param.shape)
                                 reg_loss += torch.sum(torch.abs(param))'''
                             reg_loss = return_reg_loss(ae)
+
                             # pred_loss = criterion(y_pred_masked, y_masked)
                             '''
                             criterion(y_pred1_masked, y_masked.iloc[:, 0]) +\
@@ -802,7 +851,26 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
-                            loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 10000 + criterion(out, images) * 1
+                            loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 100000 + criterion(out, images) * 1
+                            log_stage_name=""
+                            if toValidate:
+                                normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                                    datasetNameList, valid_label,
+                                    valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
+                                logger.add_scalar(
+                                    date + code + " " + log_stage_name + ": total validation accuracy",
+                                    accuracy, global_step=global_iter_num)
+                                for i in range(len(datasetNameList)):  # added for validation data#2023-1-8
+                                    logger.add_scalar(
+                                        date + code + " " + log_stage_name + ": %d-th single dataset %s validation accuracy" % (
+                                            i, datasetNameList[i]),
+                                        split_accuracy_list[i], global_step=global_iter_num)
+                            logger.add_scalar(date+code+" autoencoder reconstruction loss", criterion(out, images), global_step=global_iter_num)
+                            logger.add_scalar(date+code+" regularization loss", reg_loss, global_step=global_iter_num)
+                            logger.add_scalar(date+code+" classifier predction loss", pred_loss_total_splited_sum, global_step=global_iter_num)
+                            logger.add_scalar(date+code+" total train loss", loss.item(), global_step=global_iter_num)
+                            for name, param in ae.named_parameters():
+                                logger.add_histogram(date+code+name, param.data.numpy(), global_step=global_iter_num)
 
                         # loss= nn.BCELoss(prediction,y_train_T_tensor)+nn.BCELoss(out,images)
 
@@ -821,7 +889,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         optimizer.zero_grad()
                         loss.backward()
                         optimizer.step()
-
+                        global_iter_num = epoch * len(
+                            data_loader) + i_data_batch + 1  # calculate it's which step start from training
                         if toPrintInfo:
                             print("y_pred_list[0].shape")
                             print(y_pred_list[0].shape)
@@ -916,7 +985,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 #forward
                                 if len(datasetNameList) == 6:
                                     out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
-
+                                    if toValidate:
+                                        valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
                                 if toMask:
                                     mask = y_train_T_tensor.ne(0.5)
                                     y_masked = y_train_T_tensor * mask
@@ -945,20 +1015,47 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                         loss_list.append(criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].squeeze()))
                                         pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),y_masked_splited[i].squeeze())
                                 reg_loss=return_reg_loss(ae)
-                                loss_single_classifier=pred_loss_total_splited_sum*10000+reg_loss*0.0001
+                                loss_single_classifier=pred_loss_total_splited_sum*100000+reg_loss*0.0001
                                 print(pth_name+"loss: %f" % loss_single_classifier.item())
-                                optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=1e-3)
+                                optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[1])#1e-3
                                 optimizer.zero_grad()
                                 loss_single_classifier.backward(retain_graph=True)
                                 #loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
                                 optimizer.step()
+                                global_iter_num = epoch * len(data_loader) + i_data_batch + 1  # calculate it's which step start from training
+                                log_stage_name="single-classifier training stage"
+                                if toValidate:
+                                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                                        datasetNameList, valid_label,
+                                        valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
+                                    logger.add_scalar(
+                                        date + code + " " + log_stage_name + ": total validation accuracy",
+                                        accuracy, global_step=global_iter_num)
+                                    for i in range(len(datasetNameList)):  # added for validation data#2023-1-8
+                                        logger.add_scalar(
+                                            date + code + " " + log_stage_name + ": %d-th single dataset %s validation accuracy" % (
+                                            i, datasetNameList[i]),
+                                            split_accuracy_list[i], global_step=global_iter_num)
+                                logger.add_scalar(date+code+" single-classifier training stage: autoencoder reconstruction loss",
+                                                  criterion(out, images), global_step=global_iter_num)
+                                logger.add_scalar(date+code+" single-classifier training stage: regularization loss", reg_loss,
+                                                  global_step=global_iter_num)
+                                logger.add_scalar(date+code+" single-classifier training stage: classifier predction loss",
+                                                  pred_loss_total_splited_sum, global_step=global_iter_num)
+                                logger.add_scalar(date+code+" single-classifier training stage: total train loss",
+                                                  loss_single_classifier.item(), global_step=global_iter_num)
+                                for name, param in ae.named_parameters():
+                                    logger.add_histogram(date+code+" single-classifier training stage: " + name,
+                                                         param.data.numpy(), global_step=global_iter_num)
 
                     torch.save(ae, path + date+pth_name+".pth")
 
                     for param in ae.parameters():
                         param.requires_grad = True
-                    single_train_process(num_epochs, data_loader, datasetNameList, ae, gene_data_train_Tensor, toMask,
-                                         y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False)
+                    global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, gene_data_train_Tensor, toMask,
+                                         y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False,global_iter_num=global_iter_num,log_stage_name="whole",code=code,
+                                                         toValidate=toValidate,gene_data_valid_Tensor=gene_data_valid_Tensor,valid_label=valid_label,multi_task_training_policy=multi_task_training_policy,
+                                                         learning_rate_list=learning_rate_list)
 
                 '''
                 myMeiNN = MeiNN_pytorch(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
@@ -1331,10 +1428,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
             print(15 * '-')
 
         if count == 1:
-            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'wb') as f:
+            with open(path + date + "_" + code + "_train_model.pickle", 'wb') as f:#path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle'
                 pickle.dump((gene, model), f)
         else:
-            with open(path + date + "_" + code + "_" + model_type + "_" + data_type + 'train_model.pickle', 'ab') as f:
+            with open(path + date + "_" + code + "_train_model.pickle", 'ab') as f:
                 pickle.dump((gene, model), f)
     print("Training finish!")
     return myMeiNN, residuals_name

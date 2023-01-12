@@ -59,10 +59,12 @@ from keras.models import load_model
 
 from tensorboardX import SummaryWriter
 import tools
+import min_norm_solvers
 logger = SummaryWriter(log_dir="tensorboard_log/")
 
 warnings.filterwarnings("ignore")
-
+CLASSIFIER_FACTOR=10000
+REGULARIZATION_FACTOR=0.0001
 
 def mkdir(path):
     import os
@@ -123,7 +125,7 @@ def return_reg_loss(ae):
 
 def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_train_Tensor,toMask,y_train_T_tensor,criterion,
                          path,date,pth_name,toDebug,global_iter_num,log_stage_name,code,toValidate,gene_data_valid_Tensor,valid_label,
-                         multi_task_training_policy,learning_rate_list):
+                         multi_task_training_policy,learning_rate_list,skip_connection_mode):
     loss_list = []
     for epoch in range(num_epochs):
         for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
@@ -193,7 +195,158 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             logger.add_scalar(date+code+" "+log_stage_name+": total train loss", loss_single_classifier.item(), global_step=global_iter_num)
             for name, param in ae.named_parameters():
                 logger.add_histogram(date+code+" "+log_stage_name+": "+name, param.data.numpy(), global_step=global_iter_num)
-            torch.save(ae, path + date + pth_name+".pth")#"single-classifier-trained.pth"
+    torch.save(ae, path + date + pth_name+".pth")#"single-classifier-trained.pth"
+
+    if "MGDA" in multi_task_training_policy:
+        torch.save(ae, path + date + pth_name + "1.pth")
+        loss_now=0
+        grads = {}#[None]*len(datasetNameList)
+        scale = [0.0]*len(datasetNameList)
+        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()),
+                                     lr=learning_rate_list[2])  # 1e-3
+        for epoch in range(num_epochs,num_epochs*2):
+            for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+                # flatten the image
+                images = AE.to_var(images.view(images.size(0), -1))
+                images = images.float()
+                # forward
+                if len(datasetNameList) == 6:
+                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                    if toValidate:
+                        valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
+
+                if toMask:
+                    mask = y_train_T_tensor.ne(0.5)
+                    y_masked = y_train_T_tensor * mask
+                    if toDebug:
+                        print("DEBUG:y_train_T_tensor is:")
+                        print(y_train_T_tensor.shape)
+                        print("DEBUG: mask is:")
+                        print(mask.shape)
+                        print("DEBUG: y_masked is:")
+                        print(y_masked.shape)
+                    y_masked_splited = torch.split(y_masked, 1, 1)
+                    mask_splited = torch.split(mask, 1, 1)
+                    if toDebug:
+                        print("len of y_masked_splited%d" % len(y_masked_splited))
+                        print("DEBUG: y_masked_splited is:")
+                        print(y_masked_splited[0].shape)
+                        print("DEBUG: mask_splited is:")
+                        print("len of mask_splited%d" % len(mask_splited))
+                        print(mask_splited[0].shape)
+                    y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
+                    loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
+                    pred_loss_total_splited_sum = 0
+                    loss_single_classifier = 0
+                    single_task_loss=[0]*len(datasetNameList)
+                    for i in range(len(datasetNameList)):
+                        optimizer.zero_grad()
+                        y_pred_masked_list.append(y_pred_list[i].T * (mask_splited[i].squeeze()).squeeze())
+                        single_task_loss[i] = criterion(y_pred_masked_list[i].T.squeeze(),
+                                                        y_masked_splited[i].squeeze())
+                        loss_list.append(single_task_loss[i])
+                        pred_loss_total_splited_sum += single_task_loss[i]#this is loss for single task
+
+                        loss_now=single_task_loss[i]
+                        loss_now.backward(retain_graph=True)
+                        logger.add_scalar(date + code + " " + log_stage_name + ": %d-th single dataset %s loss" % (
+                        i, datasetNameList[i]),single_task_loss[i], global_step=global_iter_num)
+
+                        grads[i] = []
+                        if skip_connection_mode=="unet":
+                            for param in ae.encoder1.parameters():
+                                if param.grad is not None:
+                                    grads[i].append(Variable(param.grad.data.clone(),
+                                                             requires_grad=False))  # mask pretrained model weight
+                            for param in ae.encoder2.parameters():
+                                if param.grad is not None:
+                                    grads[i].append(Variable(param.grad.data.clone(),
+                                                             requires_grad=False))  # mask pretrained model weight
+                            for param in ae.encoder3.parameters():
+                                if param.grad is not None:
+                                    grads[i].append(Variable(param.grad.data.clone(),
+                                                             requires_grad=False))  # mask pretrained model weight
+                            for param in ae.encoder4.parameters():
+                                if param.grad is not None:
+                                    grads[i].append(Variable(param.grad.data.clone(),
+                                                             requires_grad=False))  # mask pretrained model weight
+                        else:
+                            for param in ae.encoder.parameters():
+                                if param.grad is not None:
+                                    grads[i].append(Variable(param.grad.data.clone(),
+                                                             requires_grad=False))  # mask pretrained model weight
+
+                print(grads)
+                # Frank-Wolfe iteration to compute scales. 利用FW算法计算loss的scale
+                sol, min_norm = min_norm_solvers.MinNormSolver.find_min_norm_element([grads[i] for i in range(len(datasetNameList))])
+                for i, t in enumerate(datasetNameList):
+                    scale[i] = float(sol[i])
+
+                # Scaled back-propagation  按计算的scale缩放loss并反向传播
+                optimizer.zero_grad()
+                #rep, _ = model['rep'](images, mask)
+                if len(datasetNameList) == 6:
+                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                    if toValidate:
+                        valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
+
+                y_pred_masked_list=[]*len(datasetNameList)
+                single_task_loss=[]*len(datasetNameList)
+                for i, t in enumerate(datasetNameList):
+                    #out_t, _ = model[t](rep, masks[t])
+                    #loss_t = loss_fn[t](out_t, labels[t])
+                    #loss_data[t] = loss_t.data[0]
+                    if toMask:
+                        mask = y_train_T_tensor.ne(0.5)
+                        y_masked = y_train_T_tensor * mask
+                        y_masked_splited = torch.split(y_masked, 1, 1)
+                        mask_splited = torch.split(mask, 1, 1)
+                        y_pred_masked_list[i]=(y_pred_list[i].T * (mask_splited[i].squeeze()).squeeze())
+                        single_task_loss[i] = criterion(y_pred_masked_list[i].T.squeeze(),
+                                                        y_masked_splited[i].squeeze())
+                        loss_t=single_task_loss[i]
+                    if i > 0:
+                        loss_now = loss_now + scale[i] * loss_t
+                    else:
+                        loss_now = scale[i] * loss_t
+                loss_now.backward(retain_graph=True)
+                optimizer.step()
+
+                reg_loss = return_reg_loss(ae)
+                loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
+                print("MDGA "+pth_name + " loss: %f" % loss_now.item())
+                #optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()),
+                #                             lr=learning_rate_list[2])  # 1e-3
+                #optimizer.zero_grad()
+                #loss_single_classifier.backward(retain_graph=True)
+                # loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
+                #optimizer.step()
+                global_iter_num = epoch * len(
+                    data_loader) + i_data_batch + 1  # calculate it's which step start from training
+                if toValidate:
+                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                        datasetNameList, valid_label, valid_y_pred_list,
+                        toPrint=False)  # added for validation data#2023-1-8
+                    logger.add_scalar("MDGA "+date + code + " " + log_stage_name + ": total validation accuracy",
+                                      accuracy, global_step=global_iter_num)
+                    for i in range(len(datasetNameList)):  # added for validation data#2023-1-8
+                        logger.add_scalar(
+                            "MDGA "+date + code + " " + log_stage_name + ": %d-th single dataset %s validation accuracy" % (
+                            i, datasetNameList[i]),
+                            split_accuracy_list[i], global_step=global_iter_num)
+                logger.add_scalar("MDGA "+date + code + " " + log_stage_name + ": autoencoder reconstruction loss",
+                                  criterion(out, images), global_step=global_iter_num)
+                logger.add_scalar("MDGA "+date + code + " " + log_stage_name + ": regularization loss", reg_loss,
+                                  global_step=global_iter_num)
+                logger.add_scalar("MDGA "+date + code + " " + log_stage_name + ": classifier predction loss",
+                                  loss_now.item(), global_step=global_iter_num)
+                logger.add_scalar("MDGA "+date + code + " " + log_stage_name + ": total train loss",
+                                  loss_now.item(), global_step=global_iter_num)
+                for name, param in ae.named_parameters():
+                    logger.add_histogram("MDGA "+date + code + " " + log_stage_name + ": " + name, param.data.numpy(),
+                                         global_step=global_iter_num)
+        #torch.save(ae, path + date + pth_name + ".pth")  # "single-classifier-trained.pth"
+        torch.save(ae, path + date + " MGDA "+pth_name + ".pth")
     return ae,loss_list,global_iter_num
 
 
@@ -1018,6 +1171,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 loss_single_classifier=pred_loss_total_splited_sum*100000+reg_loss*0.0001
                                 print(pth_name+"loss: %f" % loss_single_classifier.item())
                                 optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[1])#1e-3
+                                if "ReduceLROnPlateau" in multi_task_training_policy:
+                                    pass
                                 optimizer.zero_grad()
                                 loss_single_classifier.backward(retain_graph=True)
                                 #loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
@@ -1052,10 +1207,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
                     for param in ae.parameters():
                         param.requires_grad = True
-                    global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, gene_data_train_Tensor, toMask,
+                    ae,loss_list,global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, gene_data_train_Tensor, toMask,
                                          y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False,global_iter_num=global_iter_num,log_stage_name="whole",code=code,
                                                          toValidate=toValidate,gene_data_valid_Tensor=gene_data_valid_Tensor,valid_label=valid_label,multi_task_training_policy=multi_task_training_policy,
-                                                         learning_rate_list=learning_rate_list)
+                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode)
+
 
                 '''
                 myMeiNN = MeiNN_pytorch(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,

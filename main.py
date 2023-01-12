@@ -91,7 +91,7 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [20,100]#[200,2000,1000,500,400,100,50,40,30]#,30,40,50,100,200,400,500,1000,2000]#,4000]  # [5,10,15,25,30,40,50,100,200,400,500,1000,2000]
+num_of_selected_residue_loop_set = [2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
 skip_connection_mode = "unet"#"unet"
 # “unet" : unet shape skip connection of autoencoder
@@ -100,7 +100,7 @@ multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'mu
 # 'softmax': multi-class, with last layer of MeiNN is softmax
 # 'multi-task': multi-task solution with network architecture for each task
 # 'pretrain-finetune': first pretrain a big model with multi-tasks, then finetune each single dataset classifier
-multi_task_training_policy= "no"#"ReduceLROnPlateau"#"low_vali_accu&single_loss"
+multi_task_training_policy= "no"#"MGDA"#"ReduceLROnPlateau"#"low_vali_accu&single_loss"
 # "low_vali_accu": will train the lowest validation accuracy
 # "single_loss" when train the single classifier, only focus on the single_classifier_loss
 # grad adaptive: will assign adaptive weight to the tasks according to gradient. w(t+1)=w(t)+lambda*beta(t). beta(t)= gradient of different task to w
@@ -108,6 +108,8 @@ multi_task_training_policy= "no"#"ReduceLROnPlateau"#"low_vali_accu&single_loss"
 # "ReduceLROnPlateau": smaller learning rate when metric not improving
 #      optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
 #      scheduler = ReduceLROnPlateau(optimizer, 'min')
+# "MGDA":https://github.com/intel-isl/MultiObjectiveOptimization
+# https://arxiv.org/pdf/1810.04650.pdf
 # "no" and others:original policy
 optimizer="Adam"
 #SGD/Adam
@@ -138,7 +140,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
         predict_model_type = "L2"
         data_type = "origin_data"
         dataset_type = "train"
-        isTrain = True#False
+        isTrain = True#True#False
         toTrainAE = True
         toTrainNN = True
         isPredict = True
@@ -169,8 +171,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
         datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                            'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
         model = None
-        AE_epoch = 1000  # *len(datasetNameList)
-        NN_epoch = 1000  # *len(datasetNameList)
+        AE_epoch = 500 # *len(datasetNameList)
+        NN_epoch = 500  # *len(datasetNameList)
         batch_size_mode = "ratio"
         batch_size_ratio = 1.0
         # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -187,7 +189,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
         num_of_selected_residue_list = [2000, 2000, 2000]
         h_dim = 60 * len(datasetNameList)
 
-        date = '23-1-9-2sk-ali-pe5-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+        date = '23-1-10-2sk-ali-pe5-f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
             (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
             lossMode,
             separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)

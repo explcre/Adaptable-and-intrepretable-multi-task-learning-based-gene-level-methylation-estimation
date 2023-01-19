@@ -5,6 +5,7 @@ import re
 # from resVAE.config import config
 # import resVAE.reporting as report
 import torchvision
+import torch
 # from fastai.basic_data import DataBunch
 # from fastai.basic_train import Learner
 # from fastai.layers import *
@@ -174,6 +175,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
             print(pth_name+" loss: %f" % loss_single_classifier.item())
             optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[2])#1e-3
+            if "ReduceLROnPlateau" in multi_task_training_policy:
+                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40) # added 23-1-2 for special training policy
             optimizer.zero_grad()
             loss_single_classifier.backward(retain_graph=True)
             # loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
@@ -184,6 +187,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             if toValidate:
                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                     datasetNameList, valid_label, valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
+                if "ReduceLROnPlateau" in multi_task_training_policy:
+                    scheduler.step(accuracy)
                 logger.add_scalar(date + code + " " + log_stage_name + ": total validation accuracy",
                                   accuracy, global_step=global_iter_num)
                 for i in range(len(datasetNameList)):# added for validation data#2023-1-8
@@ -253,7 +258,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                         i, datasetNameList[i]),single_task_loss[i], global_step=global_iter_num)
 
                         grads[i] = []
-                        if skip_connection_mode=="unet":
+                        if "unet" in skip_connection_mode:
                             for param in ae.encoder1.parameters():
                                 if param.grad is not None:
                                     grads[i].append(Variable(param.grad.data.clone(),
@@ -695,7 +700,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 model_dir='./results/models',
                                 gene_to_residue_or_pathway_info=my_gene_to_residue_info, toAddGeneSite=toAddGeneSite,
                                 toAddGenePathway=toAddGenePathway,
-                                multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode,skip_connection_mode="unet")
+                                multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode,skip_connection_mode=skip_connection_mode)
 
                 # myMeiNN.build()
                 myMeiNN.compile()
@@ -748,6 +753,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
                 criterion = nn.BCELoss()
                 optimizer = torch.optim.Adam(ae.parameters(), lr=learning_rate_list[0])#0.001
+                scheduler = None
+                if "ReduceLROnPlateau" in multi_task_training_policy:
+                    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40)
                 iter_per_epoch = len(data_loader)
                 data_iter = iter(data_loader)
 
@@ -1010,6 +1018,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                                     datasetNameList, valid_label,
                                     valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
+                                if "ReduceLROnPlateau" in multi_task_training_policy:
+                                    scheduler.step(accuracy)
                                 logger.add_scalar(
                                     date + code + " " + log_stage_name + ": total validation accuracy",
                                     accuracy, global_step=global_iter_num)
@@ -1171,8 +1181,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 loss_single_classifier=pred_loss_total_splited_sum*100000+reg_loss*0.0001
                                 print(pth_name+"loss: %f" % loss_single_classifier.item())
                                 optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[1])#1e-3
+
                                 if "ReduceLROnPlateau" in multi_task_training_policy:
-                                    pass
+                                    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40) # added for special training policy
+
                                 optimizer.zero_grad()
                                 loss_single_classifier.backward(retain_graph=True)
                                 #loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
@@ -1183,6 +1195,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                                         datasetNameList, valid_label,
                                         valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
+                                    if "ReduceLROnPlateau" in multi_task_training_policy:
+                                        scheduler.step(split_accuracy_list[dataset_id])
                                     logger.add_scalar(
                                         date + code + " " + log_stage_name + ": total validation accuracy",
                                         accuracy, global_step=global_iter_num)

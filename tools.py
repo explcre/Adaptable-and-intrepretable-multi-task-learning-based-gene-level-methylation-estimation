@@ -76,7 +76,7 @@ def print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toA
                                                      split_accuracy_list,total_accuracy,
                                                      split_accuracy_list2,total_accuracy2,
                                                      split_accuracy_list3,total_accuracy3,
-                                                     toValidate,multi_task_training_policy,learning_rate_list):
+                                                     toValidate,multi_task_training_policy,learning_rate_list,preprocess_time,train_time,predict_time):
     print("code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,\
                                                      datasetNameList,\
                                                      num_of_selected_residue,\
@@ -89,7 +89,8 @@ def print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toA
                                                      split_accuracy_list,total_accuracy,\
                                                      split_accuracy_list2,total_accuracy2,\
                                                      split_accuracy_list3,total_accuracy3\
-                                                      toValidate,multi_task_training_policy,learning_rate_list ")
+                                                      toValidate,multi_task_training_policy,learning_rate_list,\
+                                                       preprocess_time,train_time,predict_time")
     print(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
                                                      datasetNameList,
                                                      num_of_selected_residue,
@@ -102,7 +103,8 @@ def print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toA
                                                      split_accuracy_list,total_accuracy,
                                                      split_accuracy_list2,total_accuracy2,
                                                      split_accuracy_list3,total_accuracy3,
-                                                    toValidate,multi_task_training_policy,learning_rate_list )
+                                                    toValidate,multi_task_training_policy,learning_rate_list,
+                                                    preprocess_time,train_time,predict_time)
 
 
 def add_to_result_csv(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
@@ -117,7 +119,8 @@ def add_to_result_csv(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSi
                                                      split_accuracy_list,total_accuracy,
                                                      split_accuracy_list2,total_accuracy2,
                                                      split_accuracy_list3,total_accuracy3,
-                                                    toValidate,multi_task_training_policy,learning_rate_list):
+                                                    toValidate,multi_task_training_policy,learning_rate_list,
+                                                    preprocess_time,train_time,predict_time):
     import csv
 
     input_path ="./result-all/"  # campaign file path
@@ -137,7 +140,7 @@ def add_to_result_csv(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSi
                                                      "diabetes1","IBD","MS","Psoriasis","RA","SLE","total_accuracy",
         "single_diabetes1", "single_IBD", "single_MS", "single_Psoriasis", "single_RA", "single_SLE","single_total_accuracy",
         "whole_diabetes1", "whole_IBD", "whole_MS", "whole_Psoriasis", "whole_RA", "whole_SLE",
-        "whole_total_accuracy","toValidate","multi_task_training_policy","learning_rate_list"]
+        "whole_total_accuracy","toValidate","multi_task_training_policy","learning_rate_list","preprocess_time","train_time","predict_time"]
     a = [code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
                                                      datasetNameList,
                                                      num_of_selected_residue,
@@ -150,7 +153,7 @@ def add_to_result_csv(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSi
                                                      diabetes1,IBD,MS,Psoriasis,RA,SLE,total_accuracy,
          single_diabetes1, single_IBD, single_MS, single_Psoriasis, single_RA, single_SLE,total_accuracy2,
          whole_diabetes1, whole_IBD, whole_MS, whole_Psoriasis, whole_RA, whole_SLE,total_accuracy3,toValidate,
-         multi_task_training_policy,learning_rate_list]
+         multi_task_training_policy,learning_rate_list,preprocess_time,train_time,predict_time]
 
     csv_write = csv.writer(input_csv, dialect='excel')
     csv_write.writerow(a0)

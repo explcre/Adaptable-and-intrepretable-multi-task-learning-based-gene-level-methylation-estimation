@@ -405,6 +405,38 @@ class MeiNN_UNet(nn.Module):
         return out
 
 
+class VAE(nn.Module):
+    def __init__(self,input_dim,gene_dim,latent_dim):
+        super(VAE, self).__init__()
+
+        self.fc1 = nn.Linear(784, 400)
+        self.fc21 = nn.Linear(400, 20)  # mean
+        self.fc22 = nn.Linear(400, 20)  # var
+        self.fc3 = nn.Linear(20, 400)
+        self.fc4 = nn.Linear(400, 784)
+
+    def encode(self, x):
+        h1 = F.relu(self.fc1(x))
+        return self.fc21(h1), self.fc22(h1)
+
+    def reparametrize(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()  # matrix multiply each other and make these element as exp of e
+        eps = torch.FloatTensor(std.size()).normal_()  #generate random array
+        if torch.cuda.is_available():
+            eps = eps.cuda()
+        return eps.mul(std).add_(mu)  # use a normal distribution multiplies stddev, then add mean, make latent vector to normal distribution
+
+    def decode(self, z):
+        h3 = F.relu(self.fc3(z))
+        return torch.tanh(self.fc4(h3))
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)  # 编码
+        z = self.reparametrize(mu, logvar)  # reparamatrize to normal disribution
+        return self.decode(z), mu, logvar  # decode, meanwhile output mean and stddev
+
+
+
 class MeiNN(nn.Module):
     def __init__(self, config, path, date, code, X_train, y_train, platform, model_type, data_type,
                  HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=1000, NN_epoch_from_main=1000,
@@ -475,23 +507,55 @@ class MeiNN(nn.Module):
             nn.Linear(q1_dim, latent_dim),
             nn.ReLU()  # nn.Sigmoid()
         )
-        self.encoder1 = nn.Sequential(
-            nn.Linear(in_dim, q3_dim_u),
-            nn.ReLU(),
-        )
-        self.encoder2 = nn.Sequential(
-            nn.Linear(q3_dim_u, mid_dim_u),
-            nn.ReLU(),
-        )
-        self.encoder3 = nn.Sequential(
-            nn.Linear(mid_dim_u, latent_dim),
-            nn.ReLU(),
-        )
-        self.encoder4 = nn.Sequential(
-            nn.Linear(latent_dim, latent_dim),
-            nn.ReLU(),
-        )
+        if "unet" in self.skip_connection_mode:# or "VAE" in self.skip_connection_mode:
+            self.encoder1 = nn.Sequential(
+                nn.Linear(in_dim, q3_dim_u),
+                nn.ReLU(),
+            )
+            self.encoder2 = nn.Sequential(
+                nn.Linear(q3_dim_u, mid_dim_u),
+                nn.ReLU(),
+            )
 
+            self.encoder3 = nn.Sequential(
+                nn.Linear(mid_dim_u, latent_dim),
+                nn.ReLU(),
+            )
+
+            self.encoder4 = nn.Sequential(
+                nn.Linear(latent_dim, latent_dim),
+                nn.ReLU(),
+            )
+            if "VAE" in self.skip_connection_mode:
+                self.encoder4_var = nn.Sequential(
+                    nn.Linear(latent_dim, latent_dim),
+                    nn.ReLU(),
+                )
+
+        if "unet" not in self.skip_connection_mode and "VAE" in self.skip_connection_mode:
+            self.encoder1 = nn.Sequential(
+                nn.Linear(in_dim, q3_dim),
+                nn.ReLU(),
+            )
+            self.encoder2 = nn.Sequential(
+                nn.Linear(q3_dim, mid_dim),
+                nn.ReLU(),
+            )
+
+            self.encoder3 = nn.Sequential(
+                nn.Linear(mid_dim, q1_dim),
+                nn.ReLU(),
+            )
+
+            self.encoder4 = nn.Sequential(
+                nn.Linear(q1_dim, latent_dim),
+                nn.ReLU(),
+            )
+            if "VAE" in self.skip_connection_mode:
+                self.encoder4_var = nn.Sequential(
+                    nn.Linear(q1_dim, latent_dim),
+                    nn.ReLU(),
+                )
         # nn.Linear(q1_dim, mid_dim),
         # nn.ReLU(),
         # nn.Linear(mid_dim, q3_dim),
@@ -523,60 +587,96 @@ class MeiNN(nn.Module):
             nn.Sigmoid()
         )
 
-        in_dim = latent_dim
+        in_dim_fcn = latent_dim
         # output dimension is 1
-        out_dim = 1
+        out_dim_fcn = 1
         if self.multiDatasetMode == "softmax":
-            out_dim = len(self.datasetNameList)
+            out_dim_fcn = len(self.datasetNameList)
         elif self.multiDatasetMode == "multi-task" or self.multiDatasetMode == "pretrain-finetune":
-            out_dim = 1
+            out_dim_fcn = 1
 
-        mid_dim = int(math.sqrt(in_dim * out_dim))
-        q3_dim = int(math.sqrt(in_dim * mid_dim))
 
-        q1_dim = int(math.sqrt(latent_dim * mid_dim))
+        mid_dim_fcn = int(math.sqrt(in_dim_fcn * out_dim_fcn))
+        q3_dim_fcn = int(math.sqrt(in_dim_fcn * mid_dim_fcn))
+
+        q1_dim_fcn = int(math.sqrt(in_dim_fcn * mid_dim_fcn))#TODO:test difference of in_dim, out_dim
         # self.FCN=[]
 
         # for i in range(len(self.datasetNameList)):
         self.FCN1 = nn.Sequential(
-            nn.Linear(in_dim, q3_dim),
+            nn.Linear(in_dim_fcn, q3_dim_fcn),
             nn.ReLU(),
-            nn.Linear(q3_dim, mid_dim),
+            nn.Linear(q3_dim_fcn, mid_dim_fcn),
             nn.ReLU(),
-            nn.Linear(mid_dim, q1_dim),
+            nn.Linear(mid_dim_fcn, q1_dim_fcn),
             nn.ReLU(),  # nn.Sigmoid()
             # nn.Linear(q1_dim, q3_dim),
             # nn.ReLU(),
-            nn.Linear(q1_dim, out_dim),
+            nn.Linear(q1_dim_fcn, out_dim_fcn),
             nn.Sigmoid()
         )
-        self.FCN2 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
-                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
-                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
-                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
-        self.FCN3 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
-                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
-                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
-                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
-        self.FCN4 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
+
+
+        self.FCN2 = nn.Sequential(nn.Linear(in_dim_fcn, q3_dim_fcn), nn.ReLU(),
+                                  nn.Linear(q3_dim_fcn, mid_dim_fcn), nn.ReLU(),
+                                  nn.Linear(mid_dim_fcn, q1_dim_fcn), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim_fcn, out_dim_fcn), nn.Sigmoid())
+        self.FCN3 = nn.Sequential(nn.Linear(in_dim_fcn, q3_dim_fcn), nn.ReLU(),
+                                  nn.Linear(q3_dim_fcn, mid_dim_fcn), nn.ReLU(),
+                                  nn.Linear(mid_dim_fcn, q1_dim_fcn), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim_fcn, out_dim_fcn), nn.Sigmoid())
+        self.FCN4 = nn.Sequential(nn.Linear(in_dim_fcn, q3_dim_fcn), nn.ReLU(),
                                   nn.Linear
-                                  (q3_dim, mid_dim), nn.ReLU(),
-                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
-                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
-        self.FCN5 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
-                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
-                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
-                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
-        self.FCN6 = nn.Sequential(nn.Linear(in_dim, q3_dim), nn.ReLU(),
-                                  nn.Linear(q3_dim, mid_dim), nn.ReLU(),
-                                  nn.Linear(mid_dim, q1_dim), nn.ReLU(),  # nn.Sigmoid()
-                                  nn.Linear(q1_dim, out_dim), nn.Sigmoid())
+                                  (q3_dim_fcn, mid_dim_fcn), nn.ReLU(),
+                                  nn.Linear(mid_dim_fcn, q1_dim_fcn), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim_fcn, out_dim_fcn), nn.Sigmoid())
+        self.FCN5 = nn.Sequential(nn.Linear(in_dim_fcn, q3_dim_fcn), nn.ReLU(),
+                                  nn.Linear(q3_dim_fcn, mid_dim_fcn), nn.ReLU(),
+                                  nn.Linear(mid_dim_fcn, q1_dim_fcn), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim_fcn, out_dim_fcn), nn.Sigmoid())
+        self.FCN6 = nn.Sequential(nn.Linear(in_dim_fcn, q3_dim_fcn), nn.ReLU(),
+                                  nn.Linear(q3_dim_fcn, mid_dim_fcn), nn.ReLU(),
+                                  nn.Linear(mid_dim_fcn, q1_dim_fcn), nn.ReLU(),  # nn.Sigmoid()
+                                  nn.Linear(q1_dim_fcn, out_dim_fcn), nn.Sigmoid())
+
+    def reparametrize(self, mu, logvar):#for VAE
+        std = logvar.mul(0.5).exp_()  # matrix multiply each other and make these element as exp of e
+        eps = torch.FloatTensor(std.size()).normal_()  #generate random array
+        if torch.cuda.is_available():
+            eps = eps.cuda()
+        return eps.mul(std).add_(mu)  # use a normal distribution multiplies stddev, then add mean, make latent vector to normal distribution
+
 
     def forward(self, x):
         """
         Note: image dimension conversion will be handled by external methods
         """
-        if self.skip_connection_mode == "unet":
+
+        if "unet"in self.skip_connection_mode and "VAE" in self.skip_connection_mode:
+            x1 = self.encoder1(x)
+            x2 = self.encoder2(x1)
+            x3 = self.encoder3(x2)
+            embedding_mu = self.encoder4(x3)
+            embedding_logvar = self.encoder4_var(x3)
+            embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
+            embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
+            x5 = self.decoder1(embedding_cat)
+            x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
+            out = self.decoder2(x5_cat)
+        elif not("unet" in self.skip_connection_mode) and ("VAE" in self.skip_connection_mode): #VAE
+            x1 = self.encoder1(x)
+            x2 = self.encoder2(x1)
+            x3 = self.encoder3(x2)
+            embedding_mu = self.encoder4(x3)
+            embedding_logvar = self.encoder4_var(x3)
+            #embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
+            embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
+            x5 = self.decoder1(embedding)
+            #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
+            out = self.decoder2(x5)
+            #embedding = self.encoder(x)
+            #out = self.decoder(embedding)
+        elif ("unet" in self.skip_connection_mode) and not("VAE" in self.skip_connection_mode):
             x1 = self.encoder1(x)
             x2 = self.encoder2(x1)
             x3 = self.encoder3(x2)
@@ -585,7 +685,7 @@ class MeiNN(nn.Module):
             x5 = self.decoder1(embedding_cat)
             x5_cat=x5+x2#torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5_cat)
-        else:
+        else:# normal auto-encoder
             embedding = self.encoder(x)
             out = self.decoder(embedding)
         # FCN0=self.FCN[0]

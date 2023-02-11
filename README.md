@@ -1,4 +1,4 @@
-# 2021Fall Adaptable and intrepretable Multi-task Learning based gene-level methylation estimation
+# Adaptable and intrepretable Multi-task Learning based gene-level methylation estimation
 
 
 ## How to run the program

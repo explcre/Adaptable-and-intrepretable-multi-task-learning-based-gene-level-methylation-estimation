@@ -7,6 +7,19 @@ Use following command to run the program
 python ./main.py
 ```
 
+## Output of this program
+After run `main.py`:
+
+There will be some partial results in `./result/`
+
+There will be a result for the setting of this run and all the test accuracy result in `result-all` named by the `output_file_name` in program `./tools.py` (around line 127). For example, `./result-all/1-10results-together.csv`.
+
+There will be logs in `./log/` named by the date.
+
+There will be cache file in `./cache/` if you will use same setting of number of residue for multiple dataset for multiple times, you can keep it so  that to save time for preprocessing.
+
+There will be some data in `tensorboard-log`, you can use command `tensorboard --logdir="./tensorboard_log/` to start the tensorboard to see the validation accuracy and weight distribution of each dataset each stages and each settings.
+
 ## Research Project Background
 This project mainly focus on topics on methylation, which is a phenomenon in DNA which will cause dysfunction. We want use residual methylation data to predict the diseases.
 However, the dimension of residual is enormous and the sample is comparatively fewer. Therefore, we want to propose a method to reduce the dimension and improve the performance.

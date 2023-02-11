@@ -18,7 +18,7 @@ There will be logs in `./log/` named by the date.
 
 There will be cache file in `./cache/` if you will use same setting of number of residue for multiple dataset for multiple times, you can keep it so  that to save time for preprocessing.
 
-There will be some data in `tensorboard-log`, you can use command `tensorboard --logdir="./tensorboard_log/` to start the tensorboard to see the validation accuracy and weight distribution of each dataset each stages and each settings.
+There will be some data in `./tensorboard-log/`, you can use command `tensorboard --logdir="./tensorboard_log/` to start the tensorboard to see the validation accuracy and weight distribution of each dataset each stages and each settings.
 
 ## Research Project Background
 This project mainly focus on topics on methylation, which is a phenomenon in DNA which will cause dysfunction. We want use residual methylation data to predict the diseases.

@@ -124,7 +124,8 @@ def add_to_result_csv(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSi
     import csv
 
     input_path ="./result-all/"  # campaign file path
-    input_csv = open(input_path + "1-10results-together.csv", 'a')#original  'ab'
+    output_file_name="1-10results-together.csv"
+    input_csv = open(input_path + output_file_name, 'a')#original  'ab'
     diabetes1,IBD,MS,Psoriasis,RA,SLE=split_accuracy_list
     single_diabetes1, single_IBD, single_MS, single_Psoriasis, single_RA, single_SLE = split_accuracy_list2
     whole_diabetes1, whole_IBD, whole_MS, whole_Psoriasis, whole_RA, whole_SLE = split_accuracy_list3

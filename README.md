@@ -18,7 +18,7 @@ There will be logs in `./log/` named by the date.
 
 There will be cache file in `./cache/` if you will use same setting of number of residue for multiple dataset for multiple times, you can keep it so  that to save time for preprocessing.
 
-There will be some data in `./tensorboard-log/`, you can use command 
+There will be some data in `./tensorboard_log/`, you can use command 
 ```
 tensorboard --logdir="./tensorboard_log/
 ``` 

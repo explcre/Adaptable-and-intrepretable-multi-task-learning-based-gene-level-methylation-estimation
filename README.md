@@ -12,7 +12,7 @@ After run `main.py`:
 
 There will be some partial results in `./result/`
 
-There will be a result for the setting of this run and all the test accuracy result in `result-all` named by the `output_file_name` in program `./tools.py` (around line 127). For example, `./result-all/1-10results-together.csv`.
+There will be a result for the setting of this run and all the test accuracy result in `./result-all/` named by the `output_file_name` in program `./tools.py` (around line 127). For example, `./result-all/1-10results-together.csv`.
 
 There will be logs in `./log/` named by the date.
 

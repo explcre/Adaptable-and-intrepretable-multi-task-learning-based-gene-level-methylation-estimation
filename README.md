@@ -6,6 +6,10 @@
 -	Implemented a Variational Auto-Encoder to support gene-level embedding shared among datasets to obtain multi-task learning.
 -	Optimized a pretrain-finetune training scheme to increase accuracy by over 10%.
 
+## Datasets
+The method is tested on six datasets,including rheumatoid arthritis, systemic lupus erythematosus, multiple sclerosis,
+and inflammatory bowel disease, psoriasis, and type 1 diabetes, and is shown to have good performance in identifying common functions of DNA methylation in phenotypes.
+
 ## How to run the program
 Use following command to run the program
 ```

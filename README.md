@@ -1,5 +1,10 @@
 # Adaptable and intrepretable Multi-task Learning based gene-level methylation estimation
 
+## Introduction
+-	Explored adaptable and interpretable neural network to find common genotype given 480k dimension sites, hundreds of sample. 
+-	Designed an explainable site-gene-pathway ontology constraint to NN to discover new biomarkers by checking weights.
+-	Implemented a Variational Auto-Encoder to support gene-level embedding shared among datasets to obtain multi-task learning.
+-	Optimized a pretrain-finetune training scheme to increase accuracy by over 10%.
 
 ## How to run the program
 Use following command to run the program

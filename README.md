@@ -19,7 +19,12 @@ The method is tested on six datasets,including:
 and is shown to have good performance in identifying common functions of DNA methylation in phenotypes.
 
 ## How to run the program
-Use following command to run the program
+Use following command to install the prequisites:
+```
+pip install -r requirements.txt
+```
+
+Use following command to run the program:
 ```
 python ./main.py
 ```

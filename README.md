@@ -42,7 +42,7 @@ There will be cache file in `./cache/` if you will use same setting of number of
 
 There will be some data in `./tensorboard_log/`, you can use command 
 ```
-tensorboard --logdir="./tensorboard_log/
+tensorboard --logdir="./tensorboard_log/"
 ``` 
 to start the tensorboard to see the validation accuracy and weight distribution of each dataset each stages and each settings.
 

@@ -173,6 +173,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                                                 y_masked_splited[i].squeeze()), global_step=global_iter_num)
             reg_loss = return_reg_loss(ae)
             loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
+            if "VAE" in skip_connection_mode:
+                loss_single_classifier +=ae.kl_divergence
             print(pth_name+" loss: %f" % loss_single_classifier.item())
             optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[2])#1e-3
             if "ReduceLROnPlateau" in multi_task_training_policy:
@@ -275,7 +277,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                                 if param.grad is not None:
                                     grads[i].append(Variable(param.grad.data.clone(),
                                                              requires_grad=False))  # mask pretrained model weight
-                        else:
+                        else:#no "unet" type skip connection, architecture is a whole en/decoder
                             for param in ae.encoder.parameters():
                                 if param.grad is not None:
                                     grads[i].append(Variable(param.grad.data.clone(),
@@ -1013,6 +1015,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
                             loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 100000 + criterion(out, images) * 1
+                            if "VAE" in skip_connection_mode:
+                                loss += ae.kl_divergence
                             log_stage_name=""
                             if toValidate:
                                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
@@ -1121,6 +1125,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     for dataset_id, datasetName in enumerate(datasetNameList):
                         print("The %d-th dataset"%dataset_id)
                         for param in ae.parameters():
+                            print("#"*100)
+                            print(param)
+                            print("#" * 100)
                             param.requires_grad = False
                         if dataset_id == 0:
                             for param in ae.FCN1.parameters():
@@ -1179,6 +1186,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                         pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].T.squeeze(),y_masked_splited[i].squeeze())
                                 reg_loss=return_reg_loss(ae)
                                 loss_single_classifier=pred_loss_total_splited_sum*100000+reg_loss*0.0001
+                                if "VAE" in skip_connection_mode:
+                                    loss_single_classifier += ae.kl_divergence
                                 print(pth_name+"loss: %f" % loss_single_classifier.item())
                                 optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[1])#1e-3
 

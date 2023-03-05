@@ -91,7 +91,7 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [20]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
 skip_connection_mode = "unet"#"unet"
 # “unet" : unet shape skip connection of autoencoder
@@ -112,13 +112,15 @@ multi_task_training_policy= "ReduceLROnPlateau"#"MGDA"#"ReduceLROnPlateau"#"low_
 # "MGDA":https://github.com/intel-isl/MultiObjectiveOptimization
 # https://arxiv.org/pdf/1810.04650.pdf
 # "no" and others:original policy
+
+#"GradientLeakyRelu"
 optimizer="Adam"
 #SGD/Adam
 learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 #pretrain-singleclassifier-finetune, three stage, each use i-th element in  the list as learning rate
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&unet","unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["ReduceLROnPlateau","no"]:#"ReduceLROnPlateau"]:#,"no"]:
+    for skip_connection_mode in ["VAE&unet"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["ReduceLROnPlateau"]:#,"no"]:#"ReduceLROnPlateau"]:#,"no"]:
             justToCheckBaseline = False
             toFillPoint5 = True
             toMask = True
@@ -191,7 +193,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-1-16f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-3-4f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)

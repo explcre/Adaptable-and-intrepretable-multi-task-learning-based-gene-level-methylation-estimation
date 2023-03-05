@@ -560,6 +560,8 @@ class MeiNN(nn.Module):
         # nn.ReLU(),
         # nn.Linear(mid_dim, q3_dim),
         # nn.ReLU(),
+
+        self.kl_divergence = 0
         self.decoder = nn.Sequential(
             # prune.custom_from_mask(
             #    nn.Linear(h_dim, mid_dim),name='activation', mask=torch.tensor(np.ones((mid_dim, h_dim))) #'embedding_to_pathway' #np.random.randint(0,2,(q1_dim, h_dim))
@@ -646,6 +648,9 @@ class MeiNN(nn.Module):
             eps = eps.cuda()
         return eps.mul(std).add_(mu)  # use a normal distribution multiplies stddev, then add mean, make latent vector to normal distribution
 
+    def kl_divergence_function(self,mu,logvar):
+        sigma = logvar.mul(0.5).exp_()
+        return (sigma ** 2 + mu ** 2 - torch.log(sigma) - 1 / 2).sum()
 
     def forward(self, x):
         """
@@ -659,6 +664,7 @@ class MeiNN(nn.Module):
             embedding_mu = self.encoder4(x3)
             embedding_logvar = self.encoder4_var(x3)
             embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
+            self.kl_divergence = self.kl_divergence_function(embedding_mu, embedding_logvar)
             embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
             x5 = self.decoder1(embedding_cat)
             x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)

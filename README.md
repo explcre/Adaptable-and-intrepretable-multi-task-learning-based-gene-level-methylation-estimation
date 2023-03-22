@@ -56,7 +56,6 @@ Moreover, the gene-level methylation may give us some common and critical inform
 
 
 ## The method we propose
-![MeiNN-new](https://user-images.githubusercontent.com/45730271/227006440-26e25521-c8e2-4019-b614-30211ebd6b4f.png)
 
 First, we designed a refined auto-encoder architecture. Input is residual methylation and output is restored residual methylation. As we go deeper, the number of nodes in the layer becomes smaller in the first half and then increases to the same dimension as input. The two half parts are named encoder and decoder. For encoder, we can distill the inherently critical and low-dimension embedding data from enormous number of residuals without human labeling. We assume the bottleneck layer of the encoder represents pathway which provides information about the basic units of heredity. 
 

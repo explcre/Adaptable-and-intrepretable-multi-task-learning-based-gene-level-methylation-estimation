@@ -56,6 +56,8 @@ Moreover, the gene-level methylation may give us some common and critical inform
 
 
 ## The method we propose
+![MeiNN-new](https://user-images.githubusercontent.com/45730271/227006440-26e25521-c8e2-4019-b614-30211ebd6b4f.png)
+
 First, we designed a refined auto-encoder architecture. Input is residual methylation and output is restored residual methylation. As we go deeper, the number of nodes in the layer becomes smaller in the first half and then increases to the same dimension as input. The two half parts are named encoder and decoder. For encoder, we can distill the inherently critical and low-dimension embedding data from enormous number of residuals without human labeling. We assume the bottleneck layer of the encoder represents pathway which provides information about the basic units of heredity. 
 
 For decoder, we designed an explainable neural network which prunes the node. The network restore data from pathway to gene-level methylation, then to the residual methylation again. For each step, dimensions become larger and the former layer is a collection of the latter layer. The reason why it’s explainable is that we only remained the connection between certain residuals in the gene and certain genes in the pathway according to expert knowledge. This pruning method reduces the dimension to calculate and also can be explained by gene rules. 

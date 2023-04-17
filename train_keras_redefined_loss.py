@@ -86,7 +86,7 @@ def mkdir(path):
         return True
     else:
         # if directory exists, don't create and print it already exists
-        print(path + " directory already exists.")
+        #print(path + " directory already exists.")
         return False
 
 
@@ -930,7 +930,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 # mydir = './data/'
                 # difine the directory to be created
                 mkpath = ".\\result\\%s" % date
-                mkdir(mkpath)
+                path_flag=0
+                if not mkdir(mkpath) and path_flag==0:
+                    print(path + " directory already exists.")
+                    path_flag+=1
                 myfile = "t_img_bth%d.png" % (i + 1)
                 images_path = os.path.join(mkpath, myfile)
                 torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)

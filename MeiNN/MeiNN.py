@@ -25,7 +25,7 @@ import sys
 import argparse
 
 # import MeiNN.utils as cutils
-from keras.utils.multi_gpu_utils import multi_gpu_model
+#from keras.utils.multi_gpu_utils import multi_gpu_model # commented for version reason
 from keras.utils.vis_utils import plot_model
 
 import MeiNN.utils as cutils
@@ -65,14 +65,16 @@ def _sampling_function(args):
 
 class gene_to_residue_or_pathway_info:
     def __init__(self, gene_to_id_map, residue_to_id_map, gene_to_residue_map, count_connection,
-                 gene_to_residue_map_reversed, gene_pathway, gene_pathway_reversed):
+                 gene_to_residue_map_reversed, gene_pathway, gene_pathway_reversed):#,gene_to_residue_map_tensor,gene_pathway_tensor):
         self.gene_to_id_map = gene_to_id_map
         self.residue_to_id_map = residue_to_id_map
         self.gene_to_residue_map = gene_to_residue_map
         self.count_connection = count_connection
         self.gene_to_residue_map_reversed = gene_to_residue_map_reversed
+        #self.gene_to_residue_map_tensor=gene_to_residue_map_tensor
         self.gene_pathway = gene_pathway
         self.gene_pathway_reversed = gene_pathway_reversed
+        #self.gene_pathway_tensor=gene_pathway_tensor
 
 
 class MeiNN:

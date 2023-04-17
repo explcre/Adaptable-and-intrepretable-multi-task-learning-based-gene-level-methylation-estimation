@@ -62,7 +62,39 @@ def to_var(x):
         x = x.cuda()
     return Variable(x)
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#from torch.nn import functional as F
+class MaskedLinear(nn.Linear):
+    def __init__(self, *args, mask, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mask = mask
+        
 
+    def forward(self, input,toDebug=False):
+        self.masked_weight=self.weight.to(device)*self.mask.to(device)
+        if toDebug:
+            print("^"*100)
+            print(self.weight) 
+            print("self.weight.shape")
+            print(self.weight.shape)
+            print("self.bias.shape")
+            print(self.bias.shape)
+            print("self.mask.shape")
+            print(self.mask.shape)
+            print("self.weight*self.mask.shape")
+            print(self.masked_weight.shape)
+            print(self.masked_weight)
+            print(torch.nn.functional.linear(input, self.masked_weight, bias=self.bias).shape)
+            print(torch.nn.functional.linear(input, self.masked_weight, bias=self.bias))
+            #fun=nn.Linear(self.in_features,self.out_features).to(device)
+            #print("fun(input).shape")
+            #print(fun(input).shape)
+            print("^"*100)
+        
+        return torch.nn.functional.linear(input, self.masked_weight, bias=self.bias)
+        #return torch.nn.functional.linear(input, self.weight, bias=self.bias)*self.mask
+        #return fun(input).to(device)*self.mask.to(device)
+        
 class Autoencoder(nn.Module):
     def __init__(self, in_dim=784, h_dim=400, platform="platform.json",
                  X_train=pd.read_table("data_train.txt", index_col=0), data_type="origin_data", model_type="AE"):
@@ -445,7 +477,7 @@ class MeiNN(nn.Module):
                  train_dataset_filename=r"./dataset/data_train.txt", train_label_filename=r"./dataset/label_train.txt",
                  gene_to_site_dir=r"./platform.json", gene_to_residue_or_pathway_info=None,
                  toAddGeneSite=True, toAddGenePathway=True,
-                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean', skip_connection_mode="unet"):
+                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean', skip_connection_mode="unet&VAE&hardmask"):
         super(MeiNN, self).__init__()
         self.outputSet = []
         # self.modelSet=[]
@@ -497,6 +529,9 @@ class MeiNN(nn.Module):
         q3_dim_u = int(math.sqrt(mid_dim_u * in_dim))
         # if skip_connection_mode=="unet":
         #    self.myMeiNN_UNet=MeiNN_UNet(in_dim,gene_layer_dim,latent_dim)
+        print("~"*100)
+        print("DEBUG:in MeiNN architecture mode="+skip_connection_mode)
+        print("~"*100)
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, q3_dim),
             nn.ReLU(),
@@ -507,6 +542,7 @@ class MeiNN(nn.Module):
             nn.Linear(q1_dim, latent_dim),
             nn.ReLU()  # nn.Sigmoid()
         )
+        
         if "unet" in self.skip_connection_mode:# or "VAE" in self.skip_connection_mode:
             self.encoder1 = nn.Sequential(
                 nn.Linear(in_dim, q3_dim_u),
@@ -562,33 +598,51 @@ class MeiNN(nn.Module):
         # nn.ReLU(),
 
         self.kl_divergence = 0
+        
+        
+        
+        if "hardmask" in self.skip_connection_mode:
+            print("detected hardmask")
+            gene_pathway_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
+            self.decoder1 = nn.Sequential(
+                MaskedLinear(latent_dim, gene_layer_dim,mask=gene_pathway_tensor),
+                nn.ReLU(),  # nn.Sigmoid()
+                )
+            gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
+            self.decoder2 = nn.Sequential(
+                MaskedLinear(gene_layer_dim, residue_layer_dim,mask=gene_site_tensor),
+                nn.Sigmoid()
+                )
+            print("hard maskedLinear defined")
+        else:
+            print("not detected hardmask")
+            self.decoder1 = nn.Sequential(
+                    nn.Linear(latent_dim, gene_layer_dim),
+                    nn.ReLU(),  # nn.Sigmoid()
+                    )
+            self.decoder2 = nn.Sequential(
+                nn.Linear(gene_layer_dim, residue_layer_dim),
+                nn.Sigmoid()
+                )
+        
         self.decoder = nn.Sequential(
-            # prune.custom_from_mask(
-            #    nn.Linear(h_dim, mid_dim),name='activation', mask=torch.tensor(np.ones((mid_dim, h_dim))) #'embedding_to_pathway' #np.random.randint(0,2,(q1_dim, h_dim))
-            # ),
-            nn.Linear(latent_dim, gene_layer_dim),
-            nn.ReLU(),  # nn.Sigmoid()
-            nn.Linear(gene_layer_dim, residue_layer_dim),
-            # prune.custom_from_mask(
-            #    nn.Linear(mid_dim, in_dim), name='weight',
-            #    mask=torch.tensor(np.ones((in_dim, mid_dim)))#'pathway_to_gene'
-            # ),
+                # prune.custom_from_mask(
+                #    nn.Linear(h_dim, mid_dim),name='activation', mask=torch.tensor(np.ones((mid_dim, h_dim))) #'embedding_to_pathway' #np.random.randint(0,2,(q1_dim, h_dim))
+                # ),
+                nn.Linear(latent_dim, gene_layer_dim),
+                nn.ReLU(),  # nn.Sigmoid()
+                nn.Linear(gene_layer_dim, residue_layer_dim),
+                # prune.custom_from_mask(
+                #    nn.Linear(mid_dim, in_dim), name='weight',
+                #    mask=torch.tensor(np.ones((in_dim, mid_dim)))#'pathway_to_gene'
+                # ),
 
-            # nn.ReLU(),
-            # nn.Linear(mid_dim, q3_dim),
-            # nn.ReLU(),
-            # nn.Linear(q3_dim, in_dim),
-            nn.Sigmoid()  # nn.Tanh()
-        )
-        self.decoder1 = nn.Sequential(
-            nn.Linear(latent_dim, gene_layer_dim),
-            nn.ReLU(),  # nn.Sigmoid()
-        )
-        self.decoder2 = nn.Sequential(
-            nn.Linear(gene_layer_dim, residue_layer_dim),
-            nn.Sigmoid()
-        )
-
+                # nn.ReLU(),
+                # nn.Linear(mid_dim, q3_dim),
+                # nn.ReLU(),
+                # nn.Linear(q3_dim, in_dim),
+                nn.Sigmoid()  # nn.Tanh()
+                )
         in_dim_fcn = latent_dim
         # output dimension is 1
         out_dim_fcn = 1
@@ -717,7 +771,44 @@ class MeiNN(nn.Module):
     def code(self, x):
         out = self.encoder(x)
         return out
+'''  
+    def explainableAELoss(self,y_true, y_pred):
+            weight = self.fcn.get_weights()
+            #ans = losses.binary_crossentropy(y_true, y_pred)#originally keras
+            rate_site = 2.0
+            rate_pathway = 2.0
+            if self.toAddGeneSite:
+                for i in range(len(weight)):
+                    print("weight[%d]*******************************************" % i)
+                    # print(weight[i])
+                    print(weight[i].shape)
+                print("self.gene_to_residue_info.gene_to_residue_map.shape")
+                print(len(self.gene_to_residue_or_pathway_info.gene_to_residue_map))
+                print(len(self.gene_to_residue_or_pathway_info.gene_to_residue_map[0]))
 
+                regular_site = abs(
+                    rate_site * weight[15] * self.gene_to_residue_or_pathway_info.gene_to_residue_map_reversed)
+
+                if self.toAddGenePathway:
+                    regular_pathway = abs(
+                        rate_pathway * weight[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
+                    if self.lossMode == 'reg_mean':
+                        ans += np.sum(regular_site) / len(regular_site) + np.sum(regular_pathway) / len(regular_pathway)
+                    else:
+                        ans += np.sum(regular_site) + np.sum(regular_pathway)
+                elif self.lossMode == 'reg_mean':
+                    ans += np.sum(regular_site) / len(regular_site)
+                else:
+                    ans += np.sum(regular_site)  # +1000*np.random.uniform(1)
+            elif self.toAddGenePathway:
+                regular_pathway = abs(
+                    rate_pathway * weight[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
+                if self.lossMode == 'reg_mean':
+                    ans += np.sum(regular_pathway) / len(regular_pathway)
+                else:
+                    ans += np.sum(regular_pathway)
+            return ans
+'''  
 
 class NN(nn.Module):
     def __init__(self, in_dim=784, h_dim=400):

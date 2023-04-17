@@ -91,12 +91,14 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [20]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [20,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
-skip_connection_mode = "unet"#"unet"
-# “unet" : unet shape skip connection of autoencoder
-# “VAE" : Variational Autoencoder
-# “no" : no skip connection of autoencoder
+skip_connection_mode = "VAE&unet&hardmask"#"unet"
+# "unet" : unet shape skip connection of autoencoder
+# "VAE" : Variational Autoencoder
+# "hardmask":hard defined masked linear layer to define explainable (sparse) neural network
+# "no" : no skip connection of autoencoder
+
 multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'
 # 'softmax': multi-class, with last layer of MeiNN is softmax
 # 'multi-task': multi-task solution with network architecture for each task
@@ -119,8 +121,8 @@ optimizer="Adam"
 learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 #pretrain-singleclassifier-finetune, three stage, each use i-th element in  the list as learning rate
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&unet"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["ReduceLROnPlateau"]:#,"no"]:#"ReduceLROnPlateau"]:#,"no"]:
+    for skip_connection_mode in ["VAE&unet&hardmask","VAE&hardmask","VAE","unet&hardmask"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["ReduceLROnPlateau","no"]:#,"no"]:#"ReduceLROnPlateau"]:#,"no"]:
             justToCheckBaseline = False
             toFillPoint5 = True
             toMask = True
@@ -175,8 +177,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 500 # *len(datasetNameList)
-            NN_epoch = 500  # *len(datasetNameList)
+            AE_epoch = 5#00 # *len(datasetNameList)
+            NN_epoch = 5#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -193,7 +195,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-3-4f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-4-16f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)

@@ -526,16 +526,16 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "separateAE-NN=" +
                                 str(separatelyTrainAE_NN) + "pred6).txt", sep='\t')
                             '''
-                            data_test_ae_out = pd.DataFrame(ae_out.detach().numpy())
+                            data_test_ae_out = pd.DataFrame(ae_out.cpu().detach().numpy())
                             data_test_ae_out.to_csv(
                                 path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
                                 sep='\t')
                             if multiDatasetMode=='pretrain-finetune':
-                                single_trained_ae_out = pd.DataFrame(single_trained_ae_out.detach().numpy())
+                                single_trained_ae_out = pd.DataFrame(single_trained_ae_out.cpu().detach().numpy())
                                 single_trained_ae_out.to_csv(
                                     path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
                                     sep='\t')
-                                finetune_ae_out = pd.DataFrame(finetune_ae_out.detach().numpy())
+                                finetune_ae_out = pd.DataFrame(finetune_ae_out.cpu().detach().numpy())
                                 finetune_ae_out.to_csv(
                                     path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
                                     sep='\t')
@@ -575,7 +575,7 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                         print("prediction is")
                         print(prediction)
                         prediction = prediction.view(out.size(0), -1)
-                        data_test_pred = prediction.detach().numpy()
+                        data_test_pred = prediction.cpu().detach().numpy()
                         print("after to numpy is")
                         print(data_test_pred)
                         data_test_pred = pd.DataFrame(np.array(data_test_pred))

@@ -20,3 +20,20 @@ def data_loader(fn):
             return fn(self)
 
     return func_wrapper
+
+
+from collections import defaultdict
+def extract_weight_method_parameters_from_args(args):
+    weight_methods_parameters = defaultdict(dict)
+    weight_methods_parameters.update(
+        dict(
+            nashmtl=dict(
+                update_weights_every=args.update_weights_every,
+                optim_niter=args.nashmtl_optim_niter,
+            ),
+            stl=dict(main_task=args.main_task),
+            cagrad=dict(c=args.c),
+            dwa=dict(temp=args.dwa_temp),
+        )
+    )
+    return weight_methods_parameters

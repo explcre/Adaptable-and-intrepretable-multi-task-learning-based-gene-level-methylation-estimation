@@ -697,7 +697,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         if toPrintInfo:
             print('finish!')
 
-    #############2021-5-21##############
+    #############2022-5-21##############
 
     if toAddGenePathway:
         gene_present_list_df = pd.DataFrame(list(gene_present_list), columns=['name'])

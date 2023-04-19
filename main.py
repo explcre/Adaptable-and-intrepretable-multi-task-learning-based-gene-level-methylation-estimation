@@ -91,7 +91,7 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [20,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [20]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
 skip_connection_mode = "VAE&unet&hardmask"#"unet"
 # "unet" : unet shape skip connection of autoencoder
@@ -122,7 +122,8 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 #pretrain-singleclassifier-finetune, three stage, each use i-th element in  the list as learning rate
 for num_of_selected_residue in num_of_selected_residue_loop_set:
     for skip_connection_mode in ["VAE&unet&hardmask","VAE&hardmask","VAE","unet&hardmask"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["ReduceLROnPlateau","no"]:#,"no"]:#"ReduceLROnPlateau"]:#,"no"]:
+        for multi_task_training_policy in ["ReduceLROnPlateau","no"]:#"ReduceLROnPlateau"]:
+            time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
             toMask = True
@@ -177,10 +178,10 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 500#00 # *len(datasetNameList)
-            NN_epoch = 500#00  # *len(datasetNameList)
+            AE_epoch = 1#00#00 # *len(datasetNameList)
+            NN_epoch = 1#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
-            batch_size_ratio = 1.0
+            batch_size_ratio = 0.5 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
 
             separatelyTrainAE_NN = False
@@ -195,7 +196,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-4-16f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-4-18f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)
@@ -835,7 +836,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             # select_feature(code, data, label, gene=True)
             time_predict_end = time.time()
             print("preprocessing time")
-            preprocess_time=time_preprocessing_end - time_start
+            preprocess_time=time_preprocessing_end - time_preprocessing_start #time_start
             print(preprocess_time)
             print("train time")
             train_time=time_train_end - time_preprocessing_end

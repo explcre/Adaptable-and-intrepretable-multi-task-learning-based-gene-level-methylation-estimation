@@ -61,12 +61,38 @@ from keras.models import load_model
 from tensorboardX import SummaryWriter
 import tools
 import min_norm_solvers
+
+from torch.utils.data import Dataset
 #from methods.weight_methods import WeightMethods
 logger = SummaryWriter(log_dir="tensorboard_log/")
 
 warnings.filterwarnings("ignore")
 CLASSIFIER_FACTOR=10000
 REGULARIZATION_FACTOR=0.0001
+TO_PIN_MEMORY=False #True
+
+class CustomDataset(Dataset):
+    def __init__(self, data,label,toDebug=False):
+        self.label = label
+        self.data = data
+        self.toDebug=toDebug
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        #img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
+        #image = read_image(img_path)
+        label = self.label[idx, :]
+        data = self.data[idx,:]
+        if self.toDebug:
+            print("DEBUG: inside dataset:")
+            print("label")
+            print(label)
+            print("data")
+            print(data)
+        return data, label
+    
 
 def mkdir(path):
     import os
@@ -112,15 +138,46 @@ def cube_data(data):
 
 toPrintInfo=False
 global_iter_num =0
-def return_reg_loss(ae):
+def return_reg_loss(ae,reg_mode="only_decoder"):
     reg_loss = 0
-    for i, param in enumerate(ae.decoder.parameters()):
-        if toPrintInfo:
-            print("%d-th layer:" % i)
-            # print(name)
-            print("param:")
-            print(param.shape)
-        reg_loss += torch.sum(torch.abs(param))
+    if reg_mode=="all":
+        for i, param in enumerate(ae.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+    elif reg_mode=="only_decoder":
+        for i, param in enumerate(ae.decoder1.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+        for i, param in enumerate(ae.decoder2.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+    elif reg_mode=="softmask of site-gene-pathway":
+        for i, param in enumerate(ae.decoder1.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+        for i, param in enumerate(ae.decoder2.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
     return reg_loss
 
 
@@ -131,13 +188,13 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     loss_list = []
     for epoch in range(num_epochs):
-        for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+        for i_data_batch, (images,y_train_T_tensor) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
             # flatten the image
             images = AE.to_var(images.view(images.size(0), -1))
             images = images.float()
             # forward
             if len(datasetNameList) == 6:
-                out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                 if toValidate:
                     valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)#for validation
             #to GPU
@@ -166,6 +223,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                 pred_loss_total_splited_sum = 0
                 loss_single_classifier = 0
+                
                 for i in range(len(datasetNameList)):
                     y_pred_masked_list.append(y_pred_list[i].to(device).T * (mask_splited[i].to(device).squeeze()).squeeze())
                     loss_list.append(criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].to(device).squeeze()))
@@ -175,7 +233,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                                       criterion(y_pred_masked_list[i].to(device).T.squeeze(),
                                                 y_masked_splited[i].to(device).squeeze()), global_step=global_iter_num)
             reg_loss = return_reg_loss(ae)
-            loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
+            loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001 #TODO:add autoencoder reconstruction loss
             if "VAE" in skip_connection_mode:
                 loss_single_classifier +=ae.kl_divergence
             print(pth_name+" loss: %f" % loss_single_classifier.item())
@@ -215,13 +273,13 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()),
                                      lr=learning_rate_list[2])  # 1e-3
         for epoch in range(num_epochs,num_epochs*2):
-            for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+            for i_data_batch, (images,y_train_T_tensor) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
                 # flatten the image
                 images = AE.to_var(images.view(images.size(0), -1))
                 images = images.float()
                 # forward
                 if len(datasetNameList) == 6:
-                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)#partial batch
                     if toValidate:
                         valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
 
@@ -296,7 +354,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 optimizer.zero_grad()
                 #rep, _ = model['rep'](images, mask)
                 if len(datasetNameList) == 6:
-                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                    out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                     if toValidate:
                         valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
 
@@ -366,13 +424,13 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()),
                                      lr=learning_rate_list[0])  # 1e-3#lr=learning_rate_list[2]
         for epoch in range(num_epochs,num_epochs*2):
-            for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+            for i_data_batch, (images,y_train_T_tensor) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
                 # flatten the image
                 images = AE.to_var(images.view(images.size(0), -1))
                 images = images.float()
                 # forward
                 if len(datasetNameList) == 6:
-                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                    out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                     if toValidate:
                         valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
 
@@ -447,7 +505,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 optimizer.zero_grad()
                 #rep, _ = model['rep'](images, mask)
                 if len(datasetNameList) == 6:
-                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                    out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                     if toValidate:
                         valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
 
@@ -881,11 +939,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 ##########added from train_pytorch.py############
                 num_epochs = AE_epoch_from_main
                 if batch_size_mode == "ratio":
-                    batch_size = int(gene_data_train.shape[1] * batch_size_ratio)  # gene_data_train.shape[0]#100#809
+                    batch_size = int(gene_data_train.shape[1] * batch_size_ratio)#originally int()  # gene_data_train.shape[0]#100#809
                 else:
                     batch_size = int(gene_data_train.shape[1])
                 # hidden_size = 10
-                dataset = gene_data_train.T  # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
+                dataset = CustomDataset(gene_data_train_Tensor.T,torch.from_numpy(y_train.T.values).float())# y is added for alignment partial batch # .flatten()#gene_data_train.view(gene_data_train.size[0], -1)
                 # dataset = gene_data_train  # dsets.MNIST(root='../data',
 
                 # train=True,
@@ -893,11 +951,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 # download=True)
                 data_loader = torch.utils.data.DataLoader(dataset=dataset,
                                                           batch_size=batch_size,
-                                                          shuffle=True)
+                                                          shuffle=True,
+                                                          pin_memory=TO_PIN_MEMORY)
                 print("gene_data_train.shape")
                 print(gene_data_train.shape)
                 print("dataset.shape")
-                print(dataset.shape)
+                print(len(dataset))
 
                 ae = AE.MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                               HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
@@ -923,23 +982,24 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 if "ReduceLROnPlateau" in multi_task_training_policy:
                     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40)
                 iter_per_epoch = len(data_loader)
-                data_iter = iter(data_loader)
+                if batch_size_ratio==1.0:
+                    data_iter = iter(data_loader)
 
-                # save fixed inputs for debugging
-                fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
-                # mydir = './data/'
-                # difine the directory to be created
-                mkpath = ".\\result\\%s" % date
-                path_flag=0
-                if not mkdir(mkpath) and path_flag==0:
-                    print(path + " directory already exists.")
-                    path_flag+=1
-                myfile = "t_img_bth%d.png" % (i + 1)
-                images_path = os.path.join(mkpath, myfile)
-                torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
-                fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
+                    # save fixed inputs for debugging
+                    fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
+                    # mydir = './data/'
+                    # difine the directory to be created
+                    mkpath = ".\\result\\%s" % date
+                    path_flag=0
+                    if not mkdir(mkpath) and path_flag==0:
+                        print(path + " directory already exists.")
+                        path_flag+=1
+                    myfile = "t_img_bth%d.png" % (i + 1)
+                    images_path = os.path.join(mkpath, myfile)
+                    torchvision.utils.save_image(Variable(fixed_x).data.cpu(), images_path)
+                    fixed_x = AE.to_var(fixed_x.view(fixed_x.size(0), -1))
                 AE_loss_list = []
-                y_train_T_tensor = torch.from_numpy(y_train.T.values).float()
+                y_train_T_tensor = torch.from_numpy(y_train.T.values).float() #TODO: make label in dataset 
                 toPrintInfo = True
                 
                 '''
@@ -987,7 +1047,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 for epoch in range(num_epochs):
                     print("Now epoch:%d"%epoch)
                     t0 = time()
-                    for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+                    for i_data_batch, [images,y_train_T_tensor] in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
                         # flatten the image
                         images = AE.to_var(images.view(images.size(0), -1))
                         images = images.float()
@@ -1009,7 +1069,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
 
                         if multiDatasetMode == "softmax":
-                            out, y_pred, embedding = ae(gene_data_train_Tensor.T)
+                            out, y_pred, embedding = ae(images)#(gene_data_train_Tensor.T)#modified for only partial batch
                             y_masked = y_train_T_tensor
                             y_pred_masked = y_pred
                             if toMask:
@@ -1040,12 +1100,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
                             if len(datasetNameList) == 6:
                                 # out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5, y_pred6], embedding=ae(gene_data_train_Tensor.T)
-                                out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                                out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                                 if toValidate:
                                     valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
                             if len(datasetNameList) == 5:
-                                out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(
-                                    gene_data_train_Tensor.T)
+                                out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(images) #gene_data_train_Tensor.T)#partial batch
                             '''
                             y_pred1_masked = y_pred1
                             y_pred2_masked = y_pred2
@@ -1184,6 +1243,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
+                            print("DEBUG:out dim=",out.shape)
+                            print("DEBUG:images dim=",images.shape)
                             loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 100000 + criterion(out, images) * 1
                             if "VAE" in skip_connection_mode:
                                 loss += ae.kl_divergence
@@ -1243,8 +1304,16 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             # print(y_masked)
                             toPrintInfo = False
                         # y_pred_list=np.array(y_pred_list)
+                        
+                        input_tensor=torch.Tensor([item.cpu().detach().numpy() for item in y_pred_list]).squeeze().T
+                        target_tensor=y_train_T_tensor
+                        # Assuming 'input_tensor' is the input tensor and 'target_tensor' is the target tensor
+                        if target_tensor.shape != input_tensor.shape:
+                            # Reshape the target tensor to match the shape of the input tensor
+                            target_tensor = target_tensor.view(input_tensor.shape)
+
                         print("reg_loss%f,ae loss%f,prediction loss-masked%f,prediction loss%f"
-                              % (reg_loss,criterion(out,images),pred_loss_total_splited_sum,criterion(torch.Tensor([item.cpu().detach().numpy() for item in y_pred_list]).squeeze().T, y_train_T_tensor)))
+                              % (reg_loss,criterion(out,images),pred_loss_total_splited_sum,criterion(input_tensor, target_tensor)))#originally#torch.Tensor([item.cpu().detach().numpy() for item in y_pred_list]).squeeze().T
 
                         print("loss: %f" % loss.item())
                         # print(loss.item())
@@ -1255,7 +1324,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                   % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
                                      time() - t0))  # original version: loss.item() was loss.data[0]
 
-                    if (epoch + 1) % 1 == 0:
+                    if (epoch + 1) % 1 == 0 and batch_size_ratio==1.0:#batch_size_ratio added
                         # save the reconstructed images
                         fixed_x = fixed_x.float()
                         reconst_images, y_pred, embedding = ae(fixed_x)  # prediction
@@ -1295,9 +1364,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     for dataset_id, datasetName in enumerate(datasetNameList):
                         print("The %d-th dataset"%dataset_id)
                         for param in ae.parameters():
-                            print("#"*100)
-                            print(param)
-                            print("#" * 100)
+                            if toPrintInfo:
+                                print("#"*100)
+                                print(param)
+                                print("#" * 100)
                             param.requires_grad = False
                         if dataset_id == 0:
                             for param in ae.FCN1.parameters():
@@ -1318,13 +1388,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             for param in ae.FCN6.parameters():
                                 param.requires_grad = True
                         for epoch in range(num_epochs):
-                            for i_data_batch, (images) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
+                            for i_data_batch, (images,y_train_T_tensor) in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
                                 # flatten the image
                                 images = AE.to_var(images.view(images.size(0), -1))
                                 images = images.float()
                                 #forward
                                 if len(datasetNameList) == 6:
-                                    out, y_pred_list, embedding = ae(gene_data_train_Tensor.T)
+                                    out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                                     if toValidate:
                                         valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
                                 if toMask:
@@ -1400,10 +1470,10 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
                     for param in ae.parameters():
                         param.requires_grad = True
-                    ae,loss_list,global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, gene_data_train_Tensor, toMask,
+                    ae,loss_list,global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, images.T, toMask,
                                          y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False,global_iter_num=global_iter_num,log_stage_name="whole",code=code,
                                                          toValidate=toValidate,gene_data_valid_Tensor=gene_data_valid_Tensor,valid_label=valid_label,multi_task_training_policy=multi_task_training_policy,
-                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode)
+                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode)#images originally:,gene_data_train_Tensor
 
 
                 '''

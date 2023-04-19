@@ -624,7 +624,7 @@ class MeiNN(nn.Module):
                 nn.Linear(gene_layer_dim, residue_layer_dim),
                 nn.Sigmoid()
                 )
-        
+        '''
         self.decoder = nn.Sequential(
                 # prune.custom_from_mask(
                 #    nn.Linear(h_dim, mid_dim),name='activation', mask=torch.tensor(np.ones((mid_dim, h_dim))) #'embedding_to_pathway' #np.random.randint(0,2,(q1_dim, h_dim))
@@ -643,6 +643,7 @@ class MeiNN(nn.Module):
                 # nn.Linear(q3_dim, in_dim),
                 nn.Sigmoid()  # nn.Tanh()
                 )
+        '''
         in_dim_fcn = latent_dim
         # output dimension is 1
         out_dim_fcn = 1
@@ -747,7 +748,8 @@ class MeiNN(nn.Module):
             out = self.decoder2(x5_cat)
         else:# normal auto-encoder
             embedding = self.encoder(x)
-            out = self.decoder(embedding)
+            out_mid = self.decoder1(embedding)#modified to decoder1 and 2 to make format aligned with other moddes
+            out = self.decoder2(out_mid)
         # FCN0=self.FCN[0]
         pred = self.FCN1(embedding)
         pred_list = []
@@ -771,27 +773,28 @@ class MeiNN(nn.Module):
     def code(self, x):
         out = self.encoder(x)
         return out
-'''  
+
     def explainableAELoss(self,y_true, y_pred):
-            weight = self.fcn.get_weights()
+            weight_decoder1 = self.decoder1.get_weights()
+            weight_decoder2 = self.decoder1.get_weights()
             #ans = losses.binary_crossentropy(y_true, y_pred)#originally keras
             rate_site = 2.0
             rate_pathway = 2.0
             if self.toAddGeneSite:
-                for i in range(len(weight)):
+                for i in range(len(weight_decoder2)):
                     print("weight[%d]*******************************************" % i)
                     # print(weight[i])
-                    print(weight[i].shape)
+                    print(weight_decoder2[i].shape)
                 print("self.gene_to_residue_info.gene_to_residue_map.shape")
                 print(len(self.gene_to_residue_or_pathway_info.gene_to_residue_map))
                 print(len(self.gene_to_residue_or_pathway_info.gene_to_residue_map[0]))
 
                 regular_site = abs(
-                    rate_site * weight[15] * self.gene_to_residue_or_pathway_info.gene_to_residue_map_reversed)
+                    rate_site * weight_decoder2[15] * self.gene_to_residue_or_pathway_info.gene_to_residue_map_reversed)
 
                 if self.toAddGenePathway:
                     regular_pathway = abs(
-                        rate_pathway * weight[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
+                        rate_pathway * weight_decoder1[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
                     if self.lossMode == 'reg_mean':
                         ans += np.sum(regular_site) / len(regular_site) + np.sum(regular_pathway) / len(regular_pathway)
                     else:
@@ -802,13 +805,13 @@ class MeiNN(nn.Module):
                     ans += np.sum(regular_site)  # +1000*np.random.uniform(1)
             elif self.toAddGenePathway:
                 regular_pathway = abs(
-                    rate_pathway * weight[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
+                    rate_pathway * weight_decoder2[12] * self.gene_to_residue_or_pathway_info.gene_pathway_reversed)
                 if self.lossMode == 'reg_mean':
                     ans += np.sum(regular_pathway) / len(regular_pathway)
                 else:
                     ans += np.sum(regular_pathway)
             return ans
-'''  
+  
 
 class NN(nn.Module):
     def __init__(self, in_dim=784, h_dim=400):

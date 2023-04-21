@@ -70,22 +70,26 @@ class MaskedLinear(nn.Linear):
         self.mask = mask
         
 
-    def forward(self, input,toDebug=False):
-        self.masked_weight=self.weight.to(device)*self.mask.to(device)
+    def forward(self, input,toDebug=False,toPrintAllWeight=False):
         if toDebug:
             print("^"*100)
-            print(self.weight) 
+            #print(self.weight) 
             print("self.weight.shape")
             print(self.weight.shape)
             print("self.bias.shape")
             print(self.bias.shape)
             print("self.mask.shape")
             print(self.mask.shape)
+
+        self.masked_weight=self.weight.to(device)*self.mask.to(device)
+
+        if toDebug:
             print("self.weight*self.mask.shape")
             print(self.masked_weight.shape)
-            print(self.masked_weight)
+            if toPrintAllWeight:
+                print(self.masked_weight)
+                print(torch.nn.functional.linear(input, self.masked_weight, bias=self.bias))
             print(torch.nn.functional.linear(input, self.masked_weight, bias=self.bias).shape)
-            print(torch.nn.functional.linear(input, self.masked_weight, bias=self.bias))
             #fun=nn.Linear(self.in_features,self.out_features).to(device)
             #print("fun(input).shape")
             #print(fun(input).shape)
@@ -542,56 +546,121 @@ class MeiNN(nn.Module):
             nn.Linear(q1_dim, latent_dim),
             nn.ReLU()  # nn.Sigmoid()
         )
+        self.bn_site1 = nn.BatchNorm2d(in_dim)
+        self.bn_site2 = nn.BatchNorm2d(in_dim)
+        self.bn_site3 = nn.BatchNorm2d(in_dim)
+        self.bn_gene1 = nn.BatchNorm2d(gene_layer_dim)
+        self.bn_gene2 = nn.BatchNorm2d(gene_layer_dim)
+        self.bn_gene3 = nn.BatchNorm2d(gene_layer_dim)
+        self.bn_path1 = nn.BatchNorm2d(latent_dim)
+        self.bn_path2 = nn.BatchNorm2d(latent_dim)
+        self.bn_path3 = nn.BatchNorm2d(latent_dim)
+        self.bn_q3_1 = nn.BatchNorm2d(q3_dim)
+        self.bn_q3_u = nn.BatchNorm2d(q3_dim_u)
+        self.bn_mid1 = nn.BatchNorm2d(mid_dim)
+        self.bn_mid_u = nn.BatchNorm2d(mid_dim_u)
+        self.bn_q1_1 = nn.BatchNorm2d(q1_dim)
+        self.bn_q1_u = nn.BatchNorm2d(q1_dim_u)
         
-        if "unet" in self.skip_connection_mode:# or "VAE" in self.skip_connection_mode:
+        gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
+        pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
+        if "hardmask-4encoder-self-fc" in self.skip_connection_mode:
+            case_type="hardmask-4encoder-self-fc"
+            print("detected"+case_type+" in encoder")
+            
             self.encoder1 = nn.Sequential(
-                nn.Linear(in_dim, q3_dim_u),
-                nn.ReLU(),
-            )
+                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=gene_site_tensor.T),
+                nn.ReLU(),  # nn.Sigmoid()
+                )
             self.encoder2 = nn.Sequential(
-                nn.Linear(q3_dim_u, mid_dim_u),
-                nn.ReLU(),
-            )
-
+                nn.Linear(gene_layer_dim, gene_layer_dim),
+                nn.ReLU(),  # nn.Sigmoid()
+                )
+            
             self.encoder3 = nn.Sequential(
-                nn.Linear(mid_dim_u, latent_dim),
-                nn.ReLU(),
-            )
-
+                MaskedLinear(gene_layer_dim, latent_dim,mask=pathway_gene_tensor.T),
+                nn.Sigmoid()
+                )
             self.encoder4 = nn.Sequential(
                 nn.Linear(latent_dim, latent_dim),
-                nn.ReLU(),
-            )
+                nn.ReLU(),  # nn.Sigmoid()
+                )
             if "VAE" in self.skip_connection_mode:
-                self.encoder4_var = nn.Sequential(
+                    self.encoder4_var = nn.Sequential(
+                        nn.Linear(latent_dim, latent_dim),
+                        nn.ReLU(),
+                    )
+            print(case_type+" maskedLinear in encoder defined")
+        elif "hardmask-2encoder" in self.skip_connection_mode:
+            case_type="hardmask-2encoder"
+            print("detected"+case_type+" in encoder")
+            
+            self.encoder1 = nn.Sequential(
+                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=gene_site_tensor.T),
+                nn.ReLU(),  # nn.Sigmoid()
+                )
+            #only encoder 1 and 4
+            self.encoder4 = nn.Sequential(
+                MaskedLinear(gene_layer_dim, latent_dim,mask=pathway_gene_tensor.T),
+                nn.Sigmoid()
+                )
+            if "VAE" in self.skip_connection_mode:
+                    self.encoder4_var = nn.Sequential(
+                        nn.Linear(gene_layer_dim, latent_dim),
+                        nn.ReLU(),
+                    )
+            print(case_type+" maskedLinear in encoder defined")
+           
+        else:#no hardmask exists in mode
+            if "unet" in self.skip_connection_mode:# or "VAE" in self.skip_connection_mode:
+                self.encoder1 = nn.Sequential(
+                    nn.Linear(in_dim, q3_dim_u),
+                    nn.ReLU(),
+                )
+                self.encoder2 = nn.Sequential(
+                    nn.Linear(q3_dim_u, mid_dim_u),
+                    nn.ReLU(),
+                )
+
+                self.encoder3 = nn.Sequential(
+                    nn.Linear(mid_dim_u, latent_dim),
+                    nn.ReLU(),
+                )
+
+                self.encoder4 = nn.Sequential(
                     nn.Linear(latent_dim, latent_dim),
                     nn.ReLU(),
                 )
+                if "VAE" in self.skip_connection_mode:
+                    self.encoder4_var = nn.Sequential(
+                        nn.Linear(latent_dim, latent_dim),
+                        nn.ReLU(),
+                    )
 
-        if "unet" not in self.skip_connection_mode and "VAE" in self.skip_connection_mode:
-            self.encoder1 = nn.Sequential(
-                nn.Linear(in_dim, q3_dim),
-                nn.ReLU(),
-            )
-            self.encoder2 = nn.Sequential(
-                nn.Linear(q3_dim, mid_dim),
-                nn.ReLU(),
-            )
+            if "unet" not in self.skip_connection_mode and "VAE" in self.skip_connection_mode:
+                self.encoder1 = nn.Sequential(
+                    nn.Linear(in_dim, q3_dim),
+                    nn.ReLU(),
+                )
+                self.encoder2 = nn.Sequential(
+                    nn.Linear(q3_dim, mid_dim),
+                    nn.ReLU(),
+                )
 
-            self.encoder3 = nn.Sequential(
-                nn.Linear(mid_dim, q1_dim),
-                nn.ReLU(),
-            )
+                self.encoder3 = nn.Sequential(
+                    nn.Linear(mid_dim, q1_dim),
+                    nn.ReLU(),
+                )
 
-            self.encoder4 = nn.Sequential(
-                nn.Linear(q1_dim, latent_dim),
-                nn.ReLU(),
-            )
-            if "VAE" in self.skip_connection_mode:
-                self.encoder4_var = nn.Sequential(
+                self.encoder4 = nn.Sequential(
                     nn.Linear(q1_dim, latent_dim),
                     nn.ReLU(),
                 )
+                if "VAE" in self.skip_connection_mode:
+                    self.encoder4_var = nn.Sequential(
+                        nn.Linear(q1_dim, latent_dim),
+                        nn.ReLU(),
+                    )
         # nn.Linear(q1_dim, mid_dim),
         # nn.ReLU(),
         # nn.Linear(mid_dim, q3_dim),
@@ -602,20 +671,20 @@ class MeiNN(nn.Module):
         
         
         if "hardmask" in self.skip_connection_mode:
-            print("detected hardmask")
-            gene_pathway_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
+            print("detected hardmask in decoder")
+            #pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
             self.decoder1 = nn.Sequential(
-                MaskedLinear(latent_dim, gene_layer_dim,mask=gene_pathway_tensor),
+                MaskedLinear(latent_dim, gene_layer_dim,mask=pathway_gene_tensor),
                 nn.ReLU(),  # nn.Sigmoid()
                 )
-            gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
+            #gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
             self.decoder2 = nn.Sequential(
                 MaskedLinear(gene_layer_dim, residue_layer_dim,mask=gene_site_tensor),
                 nn.Sigmoid()
                 )
-            print("hard maskedLinear defined")
+            print("hard maskedLinear in decoder defined")
         else:
-            print("not detected hardmask")
+            print("not detected hardmask in decoder")
             self.decoder1 = nn.Sequential(
                     nn.Linear(latent_dim, gene_layer_dim),
                     nn.ReLU(),  # nn.Sigmoid()
@@ -711,45 +780,130 @@ class MeiNN(nn.Module):
         """
         Note: image dimension conversion will be handled by external methods
         """
-
-        if "unet"in self.skip_connection_mode and "VAE" in self.skip_connection_mode:
+        if "hardmask-4encoder-self-fc" in self.skip_connection_mode:
+            #normally the encoder and decoder dimension is both defined by site-gene-pathway relation.
+            #encoder site-gene-pathway case haven't support unet mode
             x1 = self.encoder1(x)
+            if "batchnorm"in self.skip_connection_mode:
+                x1 = self.bn_gene1(x1)
             x2 = self.encoder2(x1)
+            if "batchnorm"in self.skip_connection_mode:
+                x2 = self.bn_gene2(x2)
             x3 = self.encoder3(x2)
+            if "batchnorm"in self.skip_connection_mode:
+                x3 = self.bn_path1(x3)
+            embedding_mu = self.encoder4(x3)
+            if "batchnorm"in self.skip_connection_mode:
+                embedding_mu = self.bn_path2(embedding_mu)
+            
+            if "VAE" in self.skip_connection_mode:#VAE:x3 ->(mu,var)
+                embedding_logvar = self.encoder4_var(x3)
+                #embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
+                embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
+            else:#normal AE:x3 ->embedding
+                embedding=embedding_mu
+            x5 = self.decoder1(embedding)
+            if "batchnorm"in self.skip_connection_mode:
+                x5 = self.bn_gene3(x5)
+            #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
+            out = self.decoder2(x5)
+            if "batchnorm"in self.skip_connection_mode:
+                out = self.bn_site3(out)
+        elif "hardmask-2encoder" in self.skip_connection_mode:
+            #normally the encoder and decoder dimension is both defined by site-gene-pathway relation.
+            #encoder site-gene-pathway case haven't support unet mode
+            x1 = self.encoder1(x)
+            if "batchnorm"in self.skip_connection_mode:
+                x1 = self.bn_gene1(x1)
+            embedding_mu = self.encoder4(x1)
+            if "batchnorm"in self.skip_connection_mode:
+                embedding_mu = self.bn_path1(embedding_mu)
+            
+            if "VAE" in self.skip_connection_mode:#VAE:x3 ->(mu,var)
+                embedding_logvar = self.encoder4_var(x1)
+                #embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
+                embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
+            else:#normal AE:x3 ->embedding
+                embedding=embedding_mu
+            x5 = self.decoder1(embedding)
+            if "batchnorm"in self.skip_connection_mode:
+                x5 = self.bn_gene2(x5)
+            #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
+            out = self.decoder2(x5)
+            if "batchnorm"in self.skip_connection_mode:
+                out = self.bn_site2(out)
+        elif "unet"in self.skip_connection_mode and "VAE" in self.skip_connection_mode:#unet&VAE#this case ,encoder is not hardmasked
+            x1 = self.encoder1(x)
+            if "batchnorm"in self.skip_connection_mode:
+                x1 = self.bn_q3_u(x1)
+            x2 = self.encoder2(x1)
+            if "batchnorm"in self.skip_connection_mode:
+                x2 = self.bn_mid_u(x2)
+            x3 = self.encoder3(x2)
+            if "batchnorm"in self.skip_connection_mode:
+                x3 = self.bn_path1(x3)
             embedding_mu = self.encoder4(x3)
             embedding_logvar = self.encoder4_var(x3)
             embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
             self.kl_divergence = self.kl_divergence_function(embedding_mu, embedding_logvar)
             embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
             x5 = self.decoder1(embedding_cat)
+            if "batchnorm"in self.skip_connection_mode:
+                x5 = self.bn_gene2(x5)
             x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5_cat)
-        elif not("unet" in self.skip_connection_mode) and ("VAE" in self.skip_connection_mode): #VAE
+            if "batchnorm"in self.skip_connection_mode:
+                out = self.bn_site2(out)
+        elif not("unet" in self.skip_connection_mode) and ("VAE" in self.skip_connection_mode): #VAE #this case ,encoder is not hardmasked
             x1 = self.encoder1(x)
+            if "batchnorm"in self.skip_connection_mode:
+                x1 = self.bn_q3_1(x1)
             x2 = self.encoder2(x1)
+            if "batchnorm"in self.skip_connection_mode:
+                x2 = self.bn_mid1(x2)
             x3 = self.encoder3(x2)
+            if "batchnorm"in self.skip_connection_mode:
+                x3 = self.bn_q1_1(x3)
             embedding_mu = self.encoder4(x3)
             embedding_logvar = self.encoder4_var(x3)
             #embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
             embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
             x5 = self.decoder1(embedding)
+            if "batchnorm"in self.skip_connection_mode:
+                x5 = self.bn_gene2(x5)
             #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5)
+            if "batchnorm"in self.skip_connection_mode:
+                out = self.bn_site2(out)
             #embedding = self.encoder(x)
             #out = self.decoder(embedding)
-        elif ("unet" in self.skip_connection_mode) and not("VAE" in self.skip_connection_mode):
+        elif ("unet" in self.skip_connection_mode) and not("VAE" in self.skip_connection_mode):#unet#this case ,encoder is not hardmasked
             x1 = self.encoder1(x)
+            if "batchnorm"in self.skip_connection_mode:
+                x1 = self.bn_q3_u(x1)
             x2 = self.encoder2(x1)
+            if "batchnorm"in self.skip_connection_mode:
+                x2 = self.bn_mid_u(x2)
             x3 = self.encoder3(x2)
+            if "batchnorm"in self.skip_connection_mode:
+                x3 = self.bn_path1(x3)
             embedding = self.encoder4(x3)
             embedding_cat=embedding+x3#torch.cat((embedding, x3), dim=1)
             x5 = self.decoder1(embedding_cat)
+            if "batchnorm"in self.skip_connection_mode:
+                x5 = self.bn_gene2(x5)
             x5_cat=x5+x2#torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5_cat)
-        else:# normal auto-encoder
+            if "batchnorm"in self.skip_connection_mode:
+                out = self.bn_site2(out)
+        else:# normal auto-encoder, without encoder hardmask,no unet,no VAE
             embedding = self.encoder(x)
             out_mid = self.decoder1(embedding)#modified to decoder1 and 2 to make format aligned with other moddes
+            if "batchnorm"in self.skip_connection_mode:
+                out_mid = self.bn_gene2(out_mid)
             out = self.decoder2(out_mid)
+            if "batchnorm"in self.skip_connection_mode:
+                out = self.bn_site2(out)
         # FCN0=self.FCN[0]
         pred = self.FCN1(embedding)
         pred_list = []
@@ -811,6 +965,9 @@ class MeiNN(nn.Module):
                 else:
                     ans += np.sum(regular_pathway)
             return ans
+    def save_site_gene_pathway_weight_visualization(self):
+        pass
+
   
 
 class NN(nn.Module):

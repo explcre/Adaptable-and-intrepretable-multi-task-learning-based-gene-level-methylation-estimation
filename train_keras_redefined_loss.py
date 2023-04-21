@@ -987,6 +987,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
                     # save fixed inputs for debugging
                     fixed_x = next(data_iter)  # fixed_x, _ = next(data_iter)
+                    fixed_x=fixed_x[0]#added to align CustomDataset
                     # mydir = './data/'
                     # difine the directory to be created
                     mkpath = ".\\result\\%s" % date
@@ -1323,7 +1324,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
                                   % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(),
                                      time() - t0))  # original version: loss.item() was loss.data[0]
-
+                            
                     if (epoch + 1) % 1 == 0 and batch_size_ratio==1.0:#batch_size_ratio added
                         # save the reconstructed images
                         fixed_x = fixed_x.float()

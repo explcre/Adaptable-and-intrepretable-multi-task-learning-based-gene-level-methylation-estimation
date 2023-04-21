@@ -532,12 +532,18 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                                 sep='\t')
                             if multiDatasetMode=='pretrain-finetune':
                                 single_trained_ae_out = pd.DataFrame(single_trained_ae_out.cpu().detach().numpy())
-                                single_trained_ae_out.to_csv(
+                                '''single_trained_ae_out.to_csv(
                                     path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
+                                    sep='\t')'''
+                                single_trained_ae_out.to_csv(
+                                    path + date + "_" + code + "output_sing_train.txt",
                                     sep='\t')
                                 finetune_ae_out = pd.DataFrame(finetune_ae_out.cpu().detach().numpy())
-                                finetune_ae_out.to_csv(
+                                '''finetune_ae_out.to_csv(
                                     path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output_single_trained).txt",
+                                    sep='\t')'''
+                                finetune_ae_out.to_csv(
+                                    path + date + "_" + code + "output_sing_train.txt",
                                     sep='\t')
                     else:
                         gene_data_test = np.array(gene_data_test)

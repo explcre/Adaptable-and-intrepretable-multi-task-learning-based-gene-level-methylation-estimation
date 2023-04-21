@@ -481,7 +481,7 @@ class MeiNN(nn.Module):
                  train_dataset_filename=r"./dataset/data_train.txt", train_label_filename=r"./dataset/label_train.txt",
                  gene_to_site_dir=r"./platform.json", gene_to_residue_or_pathway_info=None,
                  toAddGeneSite=True, toAddGenePathway=True,
-                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean', skip_connection_mode="unet&VAE&hardmask"):
+                 multiDatasetMode="softmax", datasetNameList=[], lossMode='reg_mean', skip_connection_mode="unet&VAE&hdmsk"):
         super(MeiNN, self).__init__()
         self.outputSet = []
         # self.modelSet=[]
@@ -564,8 +564,8 @@ class MeiNN(nn.Module):
         
         gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
         pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
-        if "hardmask-4encoder-self-fc" in self.skip_connection_mode:
-            case_type="hardmask-4encoder-self-fc"
+        if "hdmsk-4enc-self-fc" in self.skip_connection_mode:
+            case_type="hdmsk-4enc-self-fc"
             print("detected"+case_type+" in encoder")
             
             self.encoder1 = nn.Sequential(
@@ -591,8 +591,8 @@ class MeiNN(nn.Module):
                         nn.ReLU(),
                     )
             print(case_type+" maskedLinear in encoder defined")
-        elif "hardmask-2encoder" in self.skip_connection_mode:
-            case_type="hardmask-2encoder"
+        elif "hdmsk-2enc" in self.skip_connection_mode:
+            case_type="hdmsk-2enc"
             print("detected"+case_type+" in encoder")
             
             self.encoder1 = nn.Sequential(
@@ -670,7 +670,7 @@ class MeiNN(nn.Module):
         
         
         
-        if "hardmask" in self.skip_connection_mode:
+        if "hdmsk" in self.skip_connection_mode:
             print("detected hardmask in decoder")
             #pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
             self.decoder1 = nn.Sequential(
@@ -780,7 +780,7 @@ class MeiNN(nn.Module):
         """
         Note: image dimension conversion will be handled by external methods
         """
-        if "hardmask-4encoder-self-fc" in self.skip_connection_mode:
+        if "hdmsk-4enc-self-fc" in self.skip_connection_mode:
             #normally the encoder and decoder dimension is both defined by site-gene-pathway relation.
             #encoder site-gene-pathway case haven't support unet mode
             x1 = self.encoder1(x)
@@ -809,7 +809,7 @@ class MeiNN(nn.Module):
             out = self.decoder2(x5)
             if "batchnorm"in self.skip_connection_mode:
                 out = self.bn_site3(out)
-        elif "hardmask-2encoder" in self.skip_connection_mode:
+        elif "hdmsk-2enc" in self.skip_connection_mode:
             #normally the encoder and decoder dimension is both defined by site-gene-pathway relation.
             #encoder site-gene-pathway case haven't support unet mode
             x1 = self.encoder1(x)
@@ -966,6 +966,7 @@ class MeiNN(nn.Module):
                     ans += np.sum(regular_pathway)
             return ans
     def save_site_gene_pathway_weight_visualization(self):
+        
         pass
 
   

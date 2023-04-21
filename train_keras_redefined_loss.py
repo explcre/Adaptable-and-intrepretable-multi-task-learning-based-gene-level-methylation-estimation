@@ -238,7 +238,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 loss_single_classifier +=ae.kl_divergence
             print(pth_name+" loss: %f" % loss_single_classifier.item())
             optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[2])#1e-3
-            if "ReduceLROnPlateau" in multi_task_training_policy:
+            if "ROnP" in multi_task_training_policy:
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40) # added 23-1-2 for special training policy
             optimizer.zero_grad()
             loss_single_classifier.backward(retain_graph=True)
@@ -250,7 +250,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             if toValidate:
                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                     datasetNameList, valid_label, valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
-                if "ReduceLROnPlateau" in multi_task_training_policy:
+                if "ROnP" in multi_task_training_policy:
                     scheduler.step(accuracy)
                 logger.add_scalar(date + code + " " + log_stage_name + ": total validation accuracy",
                                   accuracy, global_step=global_iter_num)
@@ -788,7 +788,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         print(gene_pathway_needed)
         if selectNumPathwayMode == '=num_gene':
             selected_pathway_num = gene_pathway_needed.shape[1]
-        elif selectNumPathwayMode == 'equal_difference':
+        elif selectNumPathwayMode == 'eq_diff':
             selected_pathway_num = count_gene - (count_residue - count_gene)
         elif selectNumPathwayMode == 'num':
             selected_pathway_num = num_of_selected_pathway
@@ -851,13 +851,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     # save the dictionary : following added 22-4-14
 
     np.save(
-        path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt",
+        path + date + "_" + code  + "_residue_name_list" + ".txt",
         residuals_name)  # added 5-12
     np.save(
-        path + date + "_" + code + "_gene_level" + "_original_gene_to_id_map)" + ".txt",
+        path + date + "_" + code  + "_gene_to_id_map" + ".txt",
         gene_to_id_map)
     np.save(
-        path + date + "_" + code + "_gene_level" + "_original_residue_to_id_map)" + ".txt",
+        path + date + "_" + code  + "_residue_to_id_map" + ".txt",
         residue_to_id_map)
 
     print("len residue_to_id_map%d" % len(residue_to_id_map))
@@ -979,7 +979,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 criterion = nn.BCELoss()
                 optimizer = torch.optim.Adam(ae.parameters(), lr=learning_rate_list[0])#0.001
                 scheduler = None
-                if "ReduceLROnPlateau" in multi_task_training_policy:
+                if "ROnP" in multi_task_training_policy:
                     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40)
                 iter_per_epoch = len(data_loader)
                 if batch_size_ratio==1.0:
@@ -1254,7 +1254,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                                     datasetNameList, valid_label,
                                     valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
-                                if "ReduceLROnPlateau" in multi_task_training_policy:
+                                if "ROnP" in multi_task_training_policy:
                                     scheduler.step(accuracy)
                                 logger.add_scalar(
                                     date + code + " " + log_stage_name + ": total validation accuracy",
@@ -1432,7 +1432,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 print(pth_name+"loss: %f" % loss_single_classifier.item())
                                 optimizer=torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()), lr=learning_rate_list[1])#1e-3
 
-                                if "ReduceLROnPlateau" in multi_task_training_policy:
+                                if "ROnP" in multi_task_training_policy:
                                     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',factor=0.9,patience=40) # added for special training policy
 
                                 optimizer.zero_grad()
@@ -1445,7 +1445,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                                         datasetNameList, valid_label,
                                         valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
-                                    if "ReduceLROnPlateau" in multi_task_training_policy:
+                                    if "ROnP" in multi_task_training_policy:
                                         scheduler.step(split_accuracy_list[dataset_id])
                                     logger.add_scalar(
                                         date + code + " " + log_stage_name + ": total validation accuracy",

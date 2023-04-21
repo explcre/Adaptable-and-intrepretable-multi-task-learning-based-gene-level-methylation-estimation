@@ -91,26 +91,26 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [20,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [20,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
-skip_connection_mode = "VAE&unet&hardmask-2encoder"#"unet"
+skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 # "unet" : unet shape skip connection of autoencoder
 # "VAE" : Variational Autoencoder
-# "hardmask":hard defined masked linear layer to define explainable (sparse) neural network (for decoder)
-# "hardmask-2encoder":hard defined masked linear layer to define encoder(2 layers,site-gene-pathway) and decoder.
-# "hardmask-4encoder-self-fc":hard defined masked linear layer to define encoder(4 layers,site-gene-fc-pathway-fc) and decoder.
+# hdmsk:"hardmask":hard defined masked linear layer to define explainable (sparse) neural network (for decoder)
+# hdmsk-2enc:"hardmask-2encoder":hard defined masked linear layer to define encoder(2 layers,site-gene-pathway) and decoder.
+# hdmsk-4enc-self-fc"hardmask-4encoder-self-fc":hard defined masked linear layer to define encoder(4 layers,site-gene-fc-pathway-fc) and decoder.
 # "no" : no skip connection of autoencoder
 
 multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'
 # 'softmax': multi-class, with last layer of MeiNN is softmax
 # 'multi-task': multi-task solution with network architecture for each task
 # 'pretrain-finetune': first pretrain a big model with multi-tasks, then finetune each single dataset classifier
-multi_task_training_policy= "ReduceLROnPlateau"#"MGDA"#"ReduceLROnPlateau"#"low_vali_accu&single_loss"
+multi_task_training_policy= "ROnP"#"ReduceLROnPlateau"#"MGDA"#"ReduceLROnPlateau"#"low_vali_accu&single_loss"
 # "low_vali_accu": will train the lowest validation accuracy
 # "single_loss" when train the single classifier, only focus on the single_classifier_loss
 # grad adaptive: will assign adaptive weight to the tasks according to gradient. w(t+1)=w(t)+lambda*beta(t). beta(t)= gradient of different task to w
 # "smaller_learning_rate": when finetuning, use smaller learning rate #can use learning_rate_list to modify lr
-# "ReduceLROnPlateau": smaller learning rate when metric not improving
+# "ROnP":"ReduceLROnPlateau": smaller learning rate when metric not improving
 #      optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
 #      scheduler = ReduceLROnPlateau(optimizer, 'min')
 # "MGDA":https://github.com/intel-isl/MultiObjectiveOptimization
@@ -123,8 +123,8 @@ optimizer="Adam"
 learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 #pretrain-singleclassifier-finetune, three stage, each use i-th element in  the list as learning rate
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hardmask-4encoder-self-fc","VAE&hardmask-2encoder","VAE&unet&hardmask","VAE&hardmask","VAE","unet&hardmask"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["ReduceLROnPlateau","no"]:#"ReduceLROnPlateau"]:
+    for skip_connection_mode in ["VAE&hdmsk-2enc","VAE&hdmsk-4enc-self-fc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["ROnP","no"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
@@ -170,9 +170,9 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             # min: index will be minimum of 1,num_of_selected and 2.(last index pvalue which < pvalueThreshold)
             pvalueThreshold = 1e-5
 
-            selectNumPathwayMode = 'equal_difference'  # '=num_gene'
+            selectNumPathwayMode = 'eq_dif'  # '=num_gene'
             # '=num_gene': equal number of gene selected
-            # 'equal_difference': make pathway-gene-residue an arithmetic sequence
+            # 'eq_dif':'equal_difference': make pathway-gene-residue an arithmetic sequence
             # 'num' : give a value
             num_of_selected_pathway = num_of_selected_residue / 2  # TODO: to redesgin the function of num_of_selected_pathway
             isMultiDataset = True
@@ -180,8 +180,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 500#00#00 # *len(datasetNameList)
-            NN_epoch = 500#00#00  # *len(datasetNameList)
+            AE_epoch = 500#00 # *len(datasetNameList)
+            NN_epoch = 500#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 0.5 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)

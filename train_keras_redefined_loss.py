@@ -788,7 +788,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
         print(gene_pathway_needed)
         if selectNumPathwayMode == '=num_gene':
             selected_pathway_num = gene_pathway_needed.shape[1]
-        elif selectNumPathwayMode == 'eq_diff':
+        elif selectNumPathwayMode == 'eq_dif':
             selected_pathway_num = count_gene - (count_residue - count_gene)
         elif selectNumPathwayMode == 'num':
             selected_pathway_num = num_of_selected_pathway

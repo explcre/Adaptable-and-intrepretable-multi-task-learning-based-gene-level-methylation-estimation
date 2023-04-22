@@ -546,21 +546,21 @@ class MeiNN(nn.Module):
             nn.Linear(q1_dim, latent_dim),
             nn.ReLU()  # nn.Sigmoid()
         )
-        self.bn_site1 = nn.BatchNorm2d(in_dim)
-        self.bn_site2 = nn.BatchNorm2d(in_dim)
-        self.bn_site3 = nn.BatchNorm2d(in_dim)
-        self.bn_gene1 = nn.BatchNorm2d(gene_layer_dim)
-        self.bn_gene2 = nn.BatchNorm2d(gene_layer_dim)
-        self.bn_gene3 = nn.BatchNorm2d(gene_layer_dim)
-        self.bn_path1 = nn.BatchNorm2d(latent_dim)
-        self.bn_path2 = nn.BatchNorm2d(latent_dim)
-        self.bn_path3 = nn.BatchNorm2d(latent_dim)
-        self.bn_q3_1 = nn.BatchNorm2d(q3_dim)
-        self.bn_q3_u = nn.BatchNorm2d(q3_dim_u)
-        self.bn_mid1 = nn.BatchNorm2d(mid_dim)
-        self.bn_mid_u = nn.BatchNorm2d(mid_dim_u)
-        self.bn_q1_1 = nn.BatchNorm2d(q1_dim)
-        self.bn_q1_u = nn.BatchNorm2d(q1_dim_u)
+        self.bn_site1 = nn.BatchNorm1d(in_dim)
+        self.bn_site2 = nn.BatchNorm1d(in_dim)
+        self.bn_site3 = nn.BatchNorm1d(in_dim)
+        self.bn_gene1 = nn.BatchNorm1d(gene_layer_dim)
+        self.bn_gene2 = nn.BatchNorm1d(gene_layer_dim)
+        self.bn_gene3 = nn.BatchNorm1d(gene_layer_dim)
+        self.bn_path1 = nn.BatchNorm1d(latent_dim)
+        self.bn_path2 = nn.BatchNorm1d(latent_dim)
+        self.bn_path3 = nn.BatchNorm1d(latent_dim)
+        self.bn_q3_1 = nn.BatchNorm1d(q3_dim)
+        self.bn_q3_u = nn.BatchNorm1d(q3_dim_u)
+        self.bn_mid1 = nn.BatchNorm1d(mid_dim)
+        self.bn_mid_u = nn.BatchNorm1d(mid_dim_u)
+        self.bn_q1_1 = nn.BatchNorm1d(q1_dim)
+        self.bn_q1_u = nn.BatchNorm1d(q1_dim_u)
         
         gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
         pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
@@ -807,8 +807,8 @@ class MeiNN(nn.Module):
                 x5 = self.bn_gene3(x5)
             #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5)
-            if "batchnorm"in self.skip_connection_mode:
-                out = self.bn_site3(out)
+            #if "batchnorm"in self.skip_connection_mode:
+            #    out = self.bn_site3(out)
         elif "hdmsk-2enc" in self.skip_connection_mode:
             #normally the encoder and decoder dimension is both defined by site-gene-pathway relation.
             #encoder site-gene-pathway case haven't support unet mode
@@ -830,8 +830,8 @@ class MeiNN(nn.Module):
                 x5 = self.bn_gene2(x5)
             #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5)
-            if "batchnorm"in self.skip_connection_mode:
-                out = self.bn_site2(out)
+            #if "batchnorm"in self.skip_connection_mode:
+            #    out = self.bn_site2(out)
         elif "unet"in self.skip_connection_mode and "VAE" in self.skip_connection_mode:#unet&VAE#this case ,encoder is not hardmasked
             x1 = self.encoder1(x)
             if "batchnorm"in self.skip_connection_mode:
@@ -852,8 +852,8 @@ class MeiNN(nn.Module):
                 x5 = self.bn_gene2(x5)
             x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5_cat)
-            if "batchnorm"in self.skip_connection_mode:
-                out = self.bn_site2(out)
+            #if "batchnorm"in self.skip_connection_mode:
+            #    out = self.bn_site2(out)
         elif not("unet" in self.skip_connection_mode) and ("VAE" in self.skip_connection_mode): #VAE #this case ,encoder is not hardmasked
             x1 = self.encoder1(x)
             if "batchnorm"in self.skip_connection_mode:
@@ -873,8 +873,9 @@ class MeiNN(nn.Module):
                 x5 = self.bn_gene2(x5)
             #x5_cat = x5 + x2  # torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5)
-            if "batchnorm"in self.skip_connection_mode:
-                out = self.bn_site2(out)
+            #if "batchnorm"in self.skip_connection_mode:
+            #    out = self.bn_site2(out)
+
             #embedding = self.encoder(x)
             #out = self.decoder(embedding)
         elif ("unet" in self.skip_connection_mode) and not("VAE" in self.skip_connection_mode):#unet#this case ,encoder is not hardmasked
@@ -894,16 +895,16 @@ class MeiNN(nn.Module):
                 x5 = self.bn_gene2(x5)
             x5_cat=x5+x2#torch.cat((x5, x2), dim=1)
             out = self.decoder2(x5_cat)
-            if "batchnorm"in self.skip_connection_mode:
-                out = self.bn_site2(out)
+            #if "batchnorm"in self.skip_connection_mode:
+            #    out = self.bn_site2(out)
         else:# normal auto-encoder, without encoder hardmask,no unet,no VAE
             embedding = self.encoder(x)
             out_mid = self.decoder1(embedding)#modified to decoder1 and 2 to make format aligned with other moddes
             if "batchnorm"in self.skip_connection_mode:
                 out_mid = self.bn_gene2(out_mid)
             out = self.decoder2(out_mid)
-            if "batchnorm"in self.skip_connection_mode:
-                out = self.bn_site2(out)
+            #if "batchnorm"in self.skip_connection_mode:
+            #    out = self.bn_site2(out)
         # FCN0=self.FCN[0]
         pred = self.FCN1(embedding)
         pred_list = []

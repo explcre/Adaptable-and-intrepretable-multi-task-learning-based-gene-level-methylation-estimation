@@ -91,7 +91,7 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [20,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [20]#,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
 skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 # "unet" : unet shape skip connection of autoencoder
@@ -123,8 +123,8 @@ optimizer="Adam"
 learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 #pretrain-singleclassifier-finetune, three stage, each use i-th element in  the list as learning rate
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-2enc","VAE&hdmsk-4enc-self-fc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["ROnP","no"]:#"ReduceLROnPlateau"]:
+    for skip_connection_mode in ["VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&hdmsk&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["no","ROnP"]:#,"no"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
@@ -149,10 +149,10 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             predict_model_type = "L2"
             data_type = "origin_data"
             dataset_type = "train"
-            isTrain = True#True#False
-            toTrainAE = True
-            toTrainNN = True
-            isPredict = True
+            isTrain = True #False #True#True#False
+            toTrainAE = True # False #True
+            toTrainNN = True # False #True
+            isPredict = True # False #True
             toTrainMeiNN = True
             toAddGeneSite = True
             toAddGenePathway = True
@@ -180,10 +180,10 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 500#00 # *len(datasetNameList)
-            NN_epoch = 500#00  # *len(datasetNameList)
+            AE_epoch = 500#00#00 # *len(datasetNameList)
+            NN_epoch = 500#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
-            batch_size_ratio = 0.5 #1.0
+            batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
 
             separatelyTrainAE_NN = False
@@ -711,6 +711,10 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                             print(datasetNameList)
                             print("%d" % num_of_selected_residue)
                             f = open(path + date + "baseline_model_results.txt", 'w')
+
+                            df_baseline = pd.DataFrame.from_dict(csd, orient='index', columns=['ValScore Mean', 'ValScore Std', 'TestScore'])
+                            # Save the DataFrame as an Excel file
+                            df_baseline.to_excel(path + date + "baseline_model_results.xlsx", sheet_name='Results')
                             print(csd)
                         #########################normal train function#########################################
                         if not justToCheckBaseline:
@@ -751,7 +755,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             '''
             if not justToCheckBaseline:
                 residue_name_list = np.load(
-                    path + date + "_" + code + "_gene_level" + "_original_residue_name_list)" + ".txt.npy")
+                    path + date + "_" + code +"_residue_name_list" + ".txt.npy")
 
             print("test label is")
             print(test_label)
@@ -846,35 +850,36 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             print("predict time")
             predict_time=time_predict_end - time_train_end
             print(predict_time)
-            tools.print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
-                                                             datasetNameList,
-                                                             num_of_selected_residue,
-                                                             lossMode, selectNumPathwayMode,
-                                                             num_of_selected_pathway,
-                                                             AE_epoch, NN_epoch,
-                                                             batch_size_mode,batch_size_ratio,
-                                                             separatelyTrainAE_NN, toMask,
-                                                             framework, skip_connection_mode,
-                                                             split_accuracy_list=split_accuracy_list_, total_accuracy=accuracy_,
-                                                             split_accuracy_list2=single_trained_split_accuracy_list,
-                                                             total_accuracy2=single_trained_accuracy,
-                                                             split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,toValidate=toValidate,
-                                                             multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
-                                            preprocess_time=preprocess_time,train_time=train_time,predict_time=predict_time)
-            tools.add_to_result_csv(code, date, h_dim, toTrainMeiNN, toAddGenePathway, toAddGeneSite, multiDatasetMode,
-                                    datasetNameList,
-                                    num_of_selected_residue,
-                                    lossMode, selectNumPathwayMode,
-                                    num_of_selected_pathway,
-                                    AE_epoch, NN_epoch,
-                                    batch_size_mode, batch_size_ratio,
-                                    separatelyTrainAE_NN, toMask,
-                                    framework, skip_connection_mode,
-                                    split_accuracy_list=split_accuracy_list_, total_accuracy=accuracy_,
-                                    split_accuracy_list2= single_trained_split_accuracy_list, total_accuracy2=single_trained_accuracy,
-                                    split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,toValidate=toValidate,multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
-                                    preprocess_time=preprocess_time,train_time=train_time,predict_time=predict_time)
-            #accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_s
-            # plit_accuracy_list
+            if not justToCheckBaseline:
+                tools.print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
+                                                                datasetNameList,
+                                                                num_of_selected_residue,
+                                                                lossMode, selectNumPathwayMode,
+                                                                num_of_selected_pathway,
+                                                                AE_epoch, NN_epoch,
+                                                                batch_size_mode,batch_size_ratio,
+                                                                separatelyTrainAE_NN, toMask,
+                                                                framework, skip_connection_mode,
+                                                                split_accuracy_list=split_accuracy_list_, total_accuracy=accuracy_,
+                                                                split_accuracy_list2=single_trained_split_accuracy_list,
+                                                                total_accuracy2=single_trained_accuracy,
+                                                                split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,toValidate=toValidate,
+                                                                multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
+                                                preprocess_time=preprocess_time,train_time=train_time,predict_time=predict_time)
+                tools.add_to_result_csv(code, date, h_dim, toTrainMeiNN, toAddGenePathway, toAddGeneSite, multiDatasetMode,
+                                        datasetNameList,
+                                        num_of_selected_residue,
+                                        lossMode, selectNumPathwayMode,
+                                        num_of_selected_pathway,
+                                        AE_epoch, NN_epoch,
+                                        batch_size_mode, batch_size_ratio,
+                                        separatelyTrainAE_NN, toMask,
+                                        framework, skip_connection_mode,
+                                        split_accuracy_list=split_accuracy_list_, total_accuracy=accuracy_,
+                                        split_accuracy_list2= single_trained_split_accuracy_list, total_accuracy2=single_trained_accuracy,
+                                        split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,toValidate=toValidate,multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
+                                        preprocess_time=preprocess_time,train_time=train_time,predict_time=predict_time)
+                #accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_s
+                # plit_accuracy_list
 
 

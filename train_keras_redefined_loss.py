@@ -1244,8 +1244,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             criterion(y_pred5_masked, y_masked.iloc[:, 4]) +\
                             criterion(y_pred6_masked, y_masked.iloc[:, 5])
                             '''
-                            print("DEBUG:out dim=",out.shape)
-                            print("DEBUG:images dim=",images.shape)
+                            if epoch==1:
+                                print("DEBUG:out dim=",out.shape)
+                                print("DEBUG:images dim=",images.shape)
                             loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 100000 + criterion(out, images) * 1
                             if "VAE" in skip_connection_mode:
                                 loss += ae.kl_divergence

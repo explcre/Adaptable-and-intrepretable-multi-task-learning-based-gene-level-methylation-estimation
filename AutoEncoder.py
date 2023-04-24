@@ -536,13 +536,16 @@ class MeiNN(nn.Module):
         print("~"*100)
         print("DEBUG:in MeiNN architecture mode="+skip_connection_mode)
         print("~"*100)
-        self.encoder = nn.Sequential(
+        self.encoder1 = nn.Sequential(
             nn.Linear(in_dim, q3_dim),
-            nn.ReLU(),
+            nn.ReLU())
+        self.encoder2=nn.Sequential(
             nn.Linear(q3_dim, mid_dim),
-            nn.ReLU(),
+            nn.ReLU())
+        self.encoder3=nn.Sequential(
             nn.Linear(mid_dim, q1_dim),
-            nn.ReLU(),  # nn.Sigmoid()
+            nn.ReLU())  # nn.Sigmoid()
+        self.encoder4=nn.Sequential(
             nn.Linear(q1_dim, latent_dim),
             nn.ReLU()  # nn.Sigmoid()
         )
@@ -562,14 +565,14 @@ class MeiNN(nn.Module):
         self.bn_q1_1 = nn.BatchNorm1d(q1_dim)
         self.bn_q1_u = nn.BatchNorm1d(q1_dim_u)
         
-        gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
-        pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
+        self.gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
+        self.pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
         if "hdmsk-4enc-self-fc" in self.skip_connection_mode:
             case_type="hdmsk-4enc-self-fc"
             print("detected"+case_type+" in encoder")
             
             self.encoder1 = nn.Sequential(
-                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=gene_site_tensor.T),
+                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=self.gene_site_tensor.T),
                 nn.ReLU(),  # nn.Sigmoid()
                 )
             self.encoder2 = nn.Sequential(
@@ -578,7 +581,7 @@ class MeiNN(nn.Module):
                 )
             
             self.encoder3 = nn.Sequential(
-                MaskedLinear(gene_layer_dim, latent_dim,mask=pathway_gene_tensor.T),
+                MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
                 nn.Sigmoid()
                 )
             self.encoder4 = nn.Sequential(
@@ -596,12 +599,12 @@ class MeiNN(nn.Module):
             print("detected"+case_type+" in encoder")
             
             self.encoder1 = nn.Sequential(
-                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=gene_site_tensor.T),
+                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=self.gene_site_tensor.T),
                 nn.ReLU(),  # nn.Sigmoid()
                 )
             #only encoder 1 and 4
             self.encoder4 = nn.Sequential(
-                MaskedLinear(gene_layer_dim, latent_dim,mask=pathway_gene_tensor.T),
+                MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
                 nn.Sigmoid()
                 )
             if "VAE" in self.skip_connection_mode:
@@ -674,12 +677,12 @@ class MeiNN(nn.Module):
             print("detected hardmask in decoder")
             #pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
             self.decoder1 = nn.Sequential(
-                MaskedLinear(latent_dim, gene_layer_dim,mask=pathway_gene_tensor),
+                MaskedLinear(latent_dim, gene_layer_dim,mask=self.pathway_gene_tensor),
                 nn.ReLU(),  # nn.Sigmoid()
                 )
             #gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
             self.decoder2 = nn.Sequential(
-                MaskedLinear(gene_layer_dim, residue_layer_dim,mask=gene_site_tensor),
+                MaskedLinear(gene_layer_dim, residue_layer_dim,mask=self.gene_site_tensor),
                 nn.Sigmoid()
                 )
             print("hard maskedLinear in decoder defined")
@@ -843,6 +846,8 @@ class MeiNN(nn.Module):
             if "batchnorm"in self.skip_connection_mode:
                 x3 = self.bn_path1(x3)
             embedding_mu = self.encoder4(x3)
+            if "batchnorm"in self.skip_connection_mode:
+                embedding_mu = self.bn_path2(embedding_mu)
             embedding_logvar = self.encoder4_var(x3)
             embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
             self.kl_divergence = self.kl_divergence_function(embedding_mu, embedding_logvar)
@@ -865,6 +870,8 @@ class MeiNN(nn.Module):
             if "batchnorm"in self.skip_connection_mode:
                 x3 = self.bn_q1_1(x3)
             embedding_mu = self.encoder4(x3)
+            if "batchnorm"in self.skip_connection_mode:
+                embedding_mu = self.bn_path1(embedding_mu)
             embedding_logvar = self.encoder4_var(x3)
             #embedding_cat = embedding + x3  # torch.cat((embedding, x3), dim=1)
             embedding = self.reparametrize(embedding_mu, embedding_logvar)  # reparamatrize to normal disribution
@@ -889,6 +896,8 @@ class MeiNN(nn.Module):
             if "batchnorm"in self.skip_connection_mode:
                 x3 = self.bn_path1(x3)
             embedding = self.encoder4(x3)
+            if "batchnorm"in self.skip_connection_mode:
+                embedding = self.bn_path2(embedding)
             embedding_cat=embedding+x3#torch.cat((embedding, x3), dim=1)
             x5 = self.decoder1(embedding_cat)
             if "batchnorm"in self.skip_connection_mode:
@@ -898,7 +907,19 @@ class MeiNN(nn.Module):
             #if "batchnorm"in self.skip_connection_mode:
             #    out = self.bn_site2(out)
         else:# normal auto-encoder, without encoder hardmask,no unet,no VAE
-            embedding = self.encoder(x)
+            x1 = self.encoder1(x)
+            if "batchnorm"in self.skip_connection_mode:
+                x1 = self.bn_q3_1(x1)
+            x2 = self.encoder2(x1)
+            if "batchnorm"in self.skip_connection_mode:
+                x2 = self.bn_mid1(x2)
+            x3 = self.encoder3(x2)
+            if "batchnorm"in self.skip_connection_mode:
+                x3 = self.bn_q1_1(x3)
+            embedding = self.encoder4(x3)
+            if "batchnorm"in self.skip_connection_mode:
+                embedding = self.bn_path1(embedding)
+
             out_mid = self.decoder1(embedding)#modified to decoder1 and 2 to make format aligned with other moddes
             if "batchnorm"in self.skip_connection_mode:
                 out_mid = self.bn_gene2(out_mid)
@@ -966,8 +987,30 @@ class MeiNN(nn.Module):
                 else:
                     ans += np.sum(regular_pathway)
             return ans
-    def save_site_gene_pathway_weight_visualization(self):
-        
+    def save_site_gene_pathway_weight_visualization(self,info=""):
+        import visualize_neural_network.VisualizeNN as VisNN
+        #from sklearn.neural_network import MLPClassifier
+        import numpy as np
+        '''
+        training_set_inputs = np.array([[0, 0, 1], [0, 1, 1], [1, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 1], [0, 0, 0]])
+        training_set_outputs = np.array([[0, 1, 1, 1, 1, 0, 0]]).T
+        X = training_set_inputs
+        y = training_set_outputs
+
+        classifier = MLPClassifier(hidden_layer_sizes=(4,), alpha=0.01, tol=0.001, random_state=1)
+        classifier.fit(X, y.ravel())
+        '''
+
+        network_structure = self.decoder1.parameters().shape#np.hstack(([X.shape[1]], np.asarray(classifier.hidden_layer_sizes), [y.shape[1]]))
+        # Draw the Neural Network with weights
+        network=VisNN.DrawNN(self.decoder1.parameters().shape, self.decoder1)
+        network.draw(self.date+self.code+info+" decoder1 ")
+        network=VisNN.DrawNN(self.decoder2.parameters().shape, self.decoder2)
+        network.draw(self.date+self.code+info+" decoder2 ")
+
+        # Draw the Neural Network without weights
+        network=VisNN.DrawNN(self.decoder1.parameters().shape)
+        network.draw(self.date+self.code+info+" decoder1 without weight")
         pass
 
   

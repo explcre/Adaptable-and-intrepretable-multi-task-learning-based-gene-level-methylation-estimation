@@ -17,8 +17,16 @@ from predict_keras_redefined_loss import predict
 import time
 import tools
 #tensorboard command:tensorboard --logdir="~/methylation-github/tensorboard_log/
+import random 
+import torch
 
-
+def setup_seed(seed):
+     torch.manual_seed(seed)
+     torch.cuda.manual_seed_all(seed)
+     np.random.seed(seed)
+     random.seed(seed)
+     torch.backends.cudnn.deterministic = True
+     print("random seed setup:"+str(seed))
 
 def make_print_to_file(path='./'):
     '''
@@ -99,6 +107,12 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 # hdmsk:"hardmask":hard defined masked linear layer to define explainable (sparse) neural network (for decoder)
 # hdmsk-2enc:"hardmask-2encoder":hard defined masked linear layer to define encoder(2 layers,site-gene-pathway) and decoder.
 # hdmsk-4enc-self-fc"hardmask-4encoder-self-fc":hard defined masked linear layer to define encoder(4 layers,site-gene-fc-pathway-fc) and decoder.
+# ".5", or ".x" means , it will make the connection not defined by site-gene-pathway, mask 0.5(or other values) but not originally hard 0
+# after"^"is regularization mode,
+#           "^all" regularize all weight
+#           "^dec" regularize all decoder weight
+#           "^sftall" regularize softmask(site-gene-pathway) all encoder and decoder.
+#           "^sftde"  regularize softmask(site-gene-pathway) decoder.
 # "no" : no skip connection of autoencoder
 
 multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'
@@ -116,15 +130,27 @@ multi_task_training_policy= "ROnP"#"ReduceLROnPlateau"#"MGDA"#"ReduceLROnPlateau
 # "MGDA":https://github.com/intel-isl/MultiObjectiveOptimization
 # https://arxiv.org/pdf/1810.04650.pdf
 # "no" and others:original policy
+# After "~" is the multi-task weight assignment policy:
+#               "~uni"
+#               "~ran"
+#               "~re-val"
+#               "pwre-val"
+#               "re-ss"
+#               "norm"
+#               "s-gdnm"simple gradnorm
+#               "DRO"
+
 
 #"GradientLeakyRelu"
 optimizer="Adam"
 #SGD/Adam
 learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 #pretrain-singleclassifier-finetune, three stage, each use i-th element in  the list as learning rate
+
+setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&hdmsk&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["no","ROnP"]:#,"no"]:#"ReduceLROnPlateau"]:
+    for skip_connection_mode in ["VAE&hdmsk-4enc-self-fc&batchnorm"]:#,"VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["no~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
@@ -180,8 +206,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 500#00#00 # *len(datasetNameList)
-            NN_epoch = 500#00#00  # *len(datasetNameList)
+            AE_epoch = 1#00#00 # *len(datasetNameList)
+            NN_epoch = 1#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -198,7 +224,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-4-20f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-4-23f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)

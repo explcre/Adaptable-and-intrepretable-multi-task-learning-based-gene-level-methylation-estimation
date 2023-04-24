@@ -63,6 +63,7 @@ import tools
 import min_norm_solvers
 
 from torch.utils.data import Dataset
+import random
 #from methods.weight_methods import WeightMethods
 logger = SummaryWriter(log_dir="tensorboard_log/")
 
@@ -70,6 +71,11 @@ warnings.filterwarnings("ignore")
 CLASSIFIER_FACTOR=10000
 REGULARIZATION_FACTOR=0.0001
 TO_PIN_MEMORY=False #True
+REG_SIGN="^"
+MULTI_TASK_SIGN="~"
+SINGLE_TASK_UPPER_BOUND_WEIGHT=0.1
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class CustomDataset(Dataset):
     def __init__(self, data,label,toDebug=False):
@@ -138,8 +144,14 @@ def cube_data(data):
 
 toPrintInfo=False
 global_iter_num =0
-def return_reg_loss(ae,reg_mode="only_decoder"):
+def return_reg_loss(ae,skip_connection_mode="^dec"):
     reg_loss = 0
+    reg_mode_list=skip_connection_mode.split(REG_SIGN)
+    if len(reg_mode_list)>=2:
+        reg_mode=reg_mode_list[1]
+    else:
+        reg_mode=""
+    
     if reg_mode=="all":
         for i, param in enumerate(ae.parameters()):
             if toPrintInfo:
@@ -148,7 +160,7 @@ def return_reg_loss(ae,reg_mode="only_decoder"):
                 print("param:")
                 print(param.shape)
             reg_loss += torch.sum(torch.abs(param))
-    elif reg_mode=="only_decoder":
+    elif reg_mode=="dec":
         for i, param in enumerate(ae.decoder1.parameters()):
             if toPrintInfo:
                 print("%d-th layer:" % i)
@@ -163,7 +175,7 @@ def return_reg_loss(ae,reg_mode="only_decoder"):
                 print("param:")
                 print(param.shape)
             reg_loss += torch.sum(torch.abs(param))
-    elif reg_mode=="softmask of site-gene-pathway":
+    elif reg_mode=="sftde":
         for i, param in enumerate(ae.decoder1.parameters()):
             if toPrintInfo:
                 print("%d-th layer:" % i)
@@ -178,8 +190,122 @@ def return_reg_loss(ae,reg_mode="only_decoder"):
                 print("param:")
                 print(param.shape)
             reg_loss += torch.sum(torch.abs(param))
+    elif reg_mode=="sftall":
+        for i, param in enumerate(ae.decoder1.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+        for i, param in enumerate(ae.decoder2.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+    else :#reg_mode=="sftde":
+        pass
+        ''' 
+        for i, param in enumerate(ae.decoder1.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))
+        for i, param in enumerate(ae.decoder2.parameters()):
+            if toPrintInfo:
+                print("%d-th layer:" % i)
+                # print(name)
+                print("param:")
+                print(param.shape)
+            reg_loss += torch.sum(torch.abs(param))'''
+        
     return reg_loss
 
+
+def matrix_one_to_val(matrix,value,option=""):
+    return matrix
+
+def random_mask_matrix_ones(matrix,value,option=""):
+    return matrix
+
+def evaluate_accuracy_predict_random_mask_matrix_ones(matrix,value,option=""):
+    accuracy=0.0
+    return accuracy
+
+
+
+def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,log_info,validation_info,single_task_accu_upper_bound_list=[0.93,0.73,0.80,0.94,0.79,0.98],sample_size_list=[53,88,79,49,160,118],multi_task_training_policy="~uniform"):
+    y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
+    loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
+    pred_loss_total_splited_sum = 0
+    loss_single_classifier = 0
+    loss_sum=0
+    for i in range(len(datasetNameList)):
+        y_pred_masked_list.append(y_pred_list[i].to(device).T * (mask_splited[i].to(device).squeeze()).squeeze())
+        current_loss=criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].to(device).squeeze())
+        loss_list.append(current_loss)
+        loss_sum+=current_loss
+    ####################################################################
+    [accuracy, split_accuracy_list]=validation_info
+    # After "~" is the multi-task assignment:
+    #               "~uni"
+    #               "~ran"
+    #               "~re-val"
+    #               "pwre-val"
+    #               "re-ss"
+    #               "norm"
+    #               "s-gdnm"simple gradnorm
+    #               "DRO"
+    assign_weight_policy_list=multi_task_training_policy.split(MULTI_TASK_SIGN)
+    if len(assign_weight_policy_list)>=2:
+        assign_weight_policy=assign_weight_policy_list[1]
+    else:
+        assign_weight_policy=""
+
+    assign_weight_value_list=len(datasetNameList)*[1.0]
+    if assign_weight_policy=="uni":
+        assign_weight_value_list=[1.0 for i in range(len(datasetNameList))]
+    elif assign_weight_policy=="ran": #TODO:random
+        assign_weight_value_list=[random.random() for i in range(len(datasetNameList))]
+    elif assign_weight_policy=="re-val": #TODO:reversed porportional to validation accu
+        assign_weight_value_list=[1.0-split_accuracy_list[i] for i in range(len(datasetNameList))]
+    elif assign_weight_policy=="pwre-val": #TODO:piece-wise reversed validation accu
+        #assign_weight_value_list=[]
+        for i in range(len(datasetNameList)):
+            w=SINGLE_TASK_UPPER_BOUND_WEIGHT
+            s=single_task_accu_upper_bound_list[i]
+            x=split_accuracy_list[i]
+            if x<=s:
+                assign_weight_value_list[i]=(w-1)/s*x+1
+            else:
+                assign_weight_value_list[i]=-w/(s-1)*x+w/(1-s)
+    elif assign_weight_policy=="re-ss": #TODO:reverse porportional to task sample size
+        assign_weight_value_list=[1.0/sample_size_list[i] for i in range(len(datasetNameList))]
+    elif assign_weight_policy=="norm": #TODO:normalize the scale of each task #TODO:gradnorm
+        for i in range(len(datasetNameList)): #TODO:make sure,model.encoder4, it's last shared layer
+            assign_weight_value_list[i]=1.0/torch.norm(torch.autograd.grad(loss_list[i], model.encoder4.parameters() , retain_graph=True, create_graph=True)[0])
+    elif assign_weight_policy=="s-gdnm": #TODO:simple gradnorm ,fix whether has bug
+        for i in range(len(datasetNameList)): #TODO:make sure,model.encoder4, it's last shared layer
+            assign_weight_value_list[i]=torch.norm(torch.autograd.grad(loss_list[i], model.encoder4.parameters() , retain_graph=True, create_graph=True)[0])
+    elif assign_weight_policy=="DRO": #TODO:DRO-like, higher loss, higher weight
+        assign_weight_value_list=[loss_list[i]/loss_sum for i in range(len(datasetNameList))]
+    else :#uniform
+        assign_weight_value_list=[1.0 for i in range(len(datasetNameList))]
+    #####################################################
+    
+    for i in range(len(datasetNameList)):
+        temp_single_task_loss = criterion(y_pred_masked_list[i].to(device).T.squeeze(),
+                                                             y_masked_splited[i].to(device).squeeze())
+        pred_loss_total_splited_sum += assign_weight_value_list[i]*temp_single_task_loss
+        logger.add_scalar(log_info+"%d-th task %s loss" % (i, datasetNameList[i]),
+                                      temp_single_task_loss, global_step=global_iter_num)
+        logger.add_scalar(log_info+"%d-th weight*task %s loss" % (i, datasetNameList[i]),
+                                      assign_weight_value_list[i]*temp_single_task_loss, global_step=global_iter_num)
+    return y_pred_masked_list,loss_list,pred_loss_total_splited_sum
 
 
 def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_train_Tensor,toMask,y_train_T_tensor,criterion,
@@ -219,6 +345,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                     print("DEBUG: mask_splited is:")
                     print("len of mask_splited%d" % len(mask_splited))
                     print(mask_splited[0].shape)
+                #################################
+                '''
                 y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                 loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                 pred_loss_total_splited_sum = 0
@@ -232,7 +360,15 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                     logger.add_scalar(date+code+" "+log_stage_name+": %d-th single dataset %s loss" % (i, datasetNameList[i]),
                                       criterion(y_pred_masked_list[i].to(device).T.squeeze(),
                                                 y_masked_splited[i].to(device).squeeze()), global_step=global_iter_num)
-            reg_loss = return_reg_loss(ae)
+                '''#commented 2023-4-23 for different multi-task weight assignment
+                if 'accuracy' not in locals().keys():
+                    accuracy=0.0
+                if 'split_accuracy_list' not in locals().keys():
+                    split_accuracy_list=[0.0 for i in range(len(datasetNameList))]             
+                y_pred_masked_list,loss_list,pred_loss_total_splited_sum=assign_multi_task_weight(ae,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,(date+code+" "+log_stage_name),[accuracy, split_accuracy_list],
+                                         multi_task_training_policy=multi_task_training_policy)
+                ##################################
+            reg_loss = return_reg_loss(ae,skip_connection_mode)
             loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001 #TODO:add autoencoder reconstruction loss
             if "VAE" in skip_connection_mode:
                 loss_single_classifier +=ae.kl_divergence
@@ -247,6 +383,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
 
             global_iter_num = epoch * len(
                 data_loader) + i_data_batch + 1  # calculate it's which step start from training
+            
+            ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
             if toValidate:
                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                     datasetNameList, valid_label, valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
@@ -380,7 +518,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 loss_now.backward(retain_graph=True)
                 optimizer.step()
 
-                reg_loss = return_reg_loss(ae)
+                reg_loss = return_reg_loss(ae,skip_connection_mode)
                 loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
                 print("MGDA"+pth_name + " loss: %f" % loss_now.item())
                 #optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()),
@@ -391,6 +529,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 #optimizer.step()
                 global_iter_num = epoch * len(
                     data_loader) + i_data_batch + 1  # calculate it's which step start from training
+                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"MGDA epoch "+str(global_iter_num))
                 if toValidate:
                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                         datasetNameList, valid_label, valid_y_pred_list,
@@ -531,7 +670,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 loss_now.backward(retain_graph=True)
                 optimizer.step()
 
-                reg_loss = return_reg_loss(ae)
+                reg_loss = return_reg_loss(ae,skip_connection_mode)
                 loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001
                 print("NashMTL "+pth_name + " loss: %f" % loss_now.item())
                 #optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, ae.parameters()),
@@ -542,6 +681,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 #optimizer.step()
                 global_iter_num = epoch * len(
                     data_loader) + i_data_batch + 1  # calculate it's which step start from training
+                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"NashMTL epoch "+str(global_iter_num))
                 if toValidate:
                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                         datasetNameList, valid_label, valid_y_pred_list,
@@ -957,7 +1097,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 print(gene_data_train.shape)
                 print("dataset.shape")
                 print(len(dataset))
-
+                ###model defined#
                 ae = AE.MeiNN(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                               HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,
                               NN_epoch_from_main=NN_epoch_from_main, separatelyTrainAE_NN=separatelyTrainAE_NN,
@@ -1090,7 +1230,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 reg_loss += torch.sum(torch.abs(param))
                             '''
                             print()
-                            reg_loss = return_reg_loss(ae)
+                            reg_loss = return_reg_loss(ae,skip_connection_mode)
                             loss = reg_loss * 0.0001 + criterion(y_pred_masked, y_masked) * 10000 + criterion(out,
                                                                                                               images) * 1
 
@@ -1155,6 +1295,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print("DEBUG: mask_splited is:")
                                     print("len of mask_splited%d" % len(mask_splited))
                                     print(mask_splited[0].shape)
+
+                                ##############################################
+                                '''
                                 # print(mask_splited)
                                 y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                                 loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
@@ -1178,6 +1321,15 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                         print(y_masked_splited[i].to(device).squeeze().shape)
                                         print("loss_list[%d]= %f" % (i, loss_list[i]))
                                         print("pred_loss_total_splited_sum=%f" % pred_loss_total_splited_sum)
+                                '''
+                                #################################################################
+                                if 'accuracy' not in locals().keys():
+                                    accuracy=0.0
+                                if 'split_accuracy_list' not in locals().keys():
+                                    split_accuracy_list=[0.0 for i in range(len(datasetNameList))]
+                                log_stage_name="1st stage"
+                                y_pred_masked_list,loss_list,pred_loss_total_splited_sum=assign_multi_task_weight(ae,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,(date+code+" "+log_stage_name),[accuracy, split_accuracy_list],
+                                         multi_task_training_policy=multi_task_training_policy)
                                 '''
                                 y_pred_masked1 = y_pred1 * mask_splited[0]
                                 y_pred_masked2 = y_pred2 * mask_splited[1]
@@ -1233,7 +1385,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print("param:")
                                     print(param.shape)
                                 reg_loss += torch.sum(torch.abs(param))'''
-                            reg_loss = return_reg_loss(ae)
+                            reg_loss = return_reg_loss(ae,skip_connection_mode)
 
                             # pred_loss = criterion(y_pred_masked, y_masked)
                             '''
@@ -1291,6 +1443,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         optimizer.step()
                         global_iter_num = epoch * len(
                             data_loader) + i_data_batch + 1  # calculate it's which step start from training
+                        ae.save_site_gene_pathway_weight_visualization(info=" epoch "+str(global_iter_num))
                         if toPrintInfo:
                             print("y_pred_list[0].shape")
                             print(y_pred_list[0].shape)
@@ -1418,6 +1571,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                         print("DEBUG: mask_splited is:")
                                         print("len of mask_splited%d" % len(mask_splited))
                                         print(mask_splited[0].shape)
+                                    ###############################################
                                     y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                                     loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                                     pred_loss_total_splited_sum = 0
@@ -1426,7 +1580,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                         y_pred_masked_list.append(y_pred_list[i].to(device).T * (mask_splited[i].to(device).squeeze()).squeeze())
                                         loss_list.append(criterion(y_pred_masked_list[i].to(device).T.squeeze(), y_masked_splited[i].to(device).squeeze()))
                                         pred_loss_total_splited_sum += criterion(y_pred_masked_list[i].to(device).T.squeeze(),y_masked_splited[i].to(device).squeeze())
-                                reg_loss=return_reg_loss(ae)
+                                    ###############################################
+                                reg_loss=return_reg_loss(ae,skip_connection_mode)
                                 loss_single_classifier=pred_loss_total_splited_sum*100000+reg_loss*0.0001
                                 if "VAE" in skip_connection_mode:
                                     loss_single_classifier += ae.kl_divergence
@@ -1442,6 +1597,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 optimizer.step()
                                 global_iter_num = epoch * len(data_loader) + i_data_batch + 1  # calculate it's which step start from training
                                 log_stage_name="single-classifier training stage"
+                                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
+                                
                                 if toValidate:
                                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                                         datasetNameList, valid_label,
@@ -1469,7 +1626,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                                          param.data.cpu().numpy(), global_step=global_iter_num)
 
                     torch.save(ae, path + date+pth_name+".pth")
-
+                ##########################3rd stage train all parameters#################################################################    
                     for param in ae.parameters():
                         param.requires_grad = True
                     ae,loss_list,global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, images.T, toMask,

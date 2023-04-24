@@ -1036,7 +1036,7 @@ class MeiNN(nn.Module):
 
         # Draw the Neural Network without weights
         network=VisNN.DrawNN(decoder1_architecture, weights_list=[decoder1_weight])
-        network.draw(fig_name=self.date+info+" decoder1 w/o w")
+        network.draw(fig_name=self.date+info+" decoder1 wo w")
 
 
     def visualize_weights(self,weights, layer_distance=3, circle_radius=5,filename=None):

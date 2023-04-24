@@ -14,7 +14,8 @@ import torch.nn.utils.prune as prune
 import pickle
 from time import time
 
-
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 # from AE import *
 
 # tensorboard visualization
@@ -80,9 +81,9 @@ class MaskedLinear(nn.Linear):
             print(self.bias.shape)
             print("self.mask.shape")
             print(self.mask.shape)
-
+        self.unmasked_weight=self.weight.to(device)
         self.masked_weight=self.weight.to(device)*self.mask.to(device)
-
+        #self.weight=self.weight.to(device)*self.mask.to(device)
         if toDebug:
             print("self.weight*self.mask.shape")
             print(self.masked_weight.shape)
@@ -1000,18 +1001,80 @@ class MeiNN(nn.Module):
         classifier = MLPClassifier(hidden_layer_sizes=(4,), alpha=0.01, tol=0.001, random_state=1)
         classifier.fit(X, y.ravel())
         '''
-
-        network_structure = self.decoder1.parameters().shape#np.hstack(([X.shape[1]], np.asarray(classifier.hidden_layer_sizes), [y.shape[1]]))
+        if "hdmsk"in self.skip_connection_mode:
+            decoder1_shape=self.decoder1[0].masked_weight.shape
+            decoder2_shape=self.decoder2[0].masked_weight.shape
+            decoder1_weight=self.decoder1[0].masked_weight.cpu().detach().numpy()
+            decoder2_weight=self.decoder2[0].masked_weight.cpu().detach().numpy()
+        else:
+            decoder1_shape=self.decoder1[0].weight.shape
+            decoder2_shape=self.decoder2[0].weight.shape
+            decoder1_weight=self.decoder1[0].weight.cpu().detach().numpy()
+            decoder2_weight=self.decoder2[0].weight.cpu().detach().numpy()
+        #network_structure = self.decoder1[0].weight.shape#np.hstack(([X.shape[1]], np.asarray(classifier.hidden_layer_sizes), [y.shape[1]]))
         # Draw the Neural Network with weights
-        network=VisNN.DrawNN(self.decoder1.parameters().shape, self.decoder1)
-        network.draw(self.date+self.code+info+" decoder1 ")
-        network=VisNN.DrawNN(self.decoder2.parameters().shape, self.decoder2)
-        network.draw(self.date+self.code+info+" decoder2 ")
+        decoder1_architecture = [decoder1_shape[0], decoder1_shape[1]]
+        decoder2_architecture = [decoder2_shape[0], decoder2_shape[1]]
+        toDebug=False
+        if toDebug:
+            print("%"*100)
+            if "hdmsk"in self.skip_connection_mode:
+                print(self.decoder1[0].masked_weight)
+            else:
+                print(self.decoder1[0].weight)
+            print(decoder1_shape)
+            print(decoder1_weight)
+            print(decoder1_weight.shape)
+            print("%"*100)
+        #self.visualize_weights(weights=decoder1_weight,filename=(self.date+self.code+info+" decoder1-weight.png"))
+        #self.visualize_weights(weights=decoder2_weight,filename=(self.date+self.code+info+" decoder2-weight.png"))
+        
+        network = VisNN.DrawNN(decoder1_architecture, weights_list=[decoder1_weight])
+        network.draw(fig_name=self.date+info+" decoder1 ")
+        network=VisNN.DrawNN(decoder2_architecture, weights_list=[decoder2_weight])
+        network.draw(fig_name=self.date+info+" decoder2 ")
 
         # Draw the Neural Network without weights
-        network=VisNN.DrawNN(self.decoder1.parameters().shape)
-        network.draw(self.date+self.code+info+" decoder1 without weight")
-        pass
+        network=VisNN.DrawNN(decoder1_architecture, weights_list=[decoder1_weight])
+        network.draw(fig_name=self.date+info+" decoder1 w/o w")
+
+
+    def visualize_weights(self,weights, layer_distance=3, circle_radius=5,filename=None):
+        num_neurons_layer1 = weights.shape[0]
+        num_neurons_layer2 = weights.shape[1]
+        #circle_radius = 1
+
+        fig, ax = plt.subplots()
+
+        # Draw neurons as circles
+        for i in range(num_neurons_layer1):
+            ax.add_patch(Circle((i * circle_radius * 2, 0), circle_radius, edgecolor='black', facecolor='white'))
+            ax.text(i * circle_radius * 2, 0, i, fontsize=12, ha='center', va='center')
+            
+        for j in range(num_neurons_layer2):
+            ax.add_patch(Circle((j * circle_radius * 2, layer_distance), circle_radius, edgecolor='black', facecolor='white'))
+            ax.text(j * circle_radius * 2, layer_distance, j, fontsize=12, ha='center', va='center')
+
+        # Draw connections using lines
+        max_weight = np.max(np.abs(weights))
+        for i in range(num_neurons_layer1):
+            for j in range(num_neurons_layer2):
+                weight = weights[i, j]
+                linewidth = np.abs(weight) / max_weight * 5
+                color = 'red' if weight < 0 else 'blue'
+                alpha = np.abs(weight) / max_weight
+                ax.plot([i * circle_radius * 2, j * circle_radius * 2], [0, layer_distance], linewidth=linewidth, color=color, alpha=alpha)
+                ax.text((i * circle_radius * 2 + j * circle_radius * 2) / 2, layer_distance / 2, f"{weight:.2f}", fontsize=8, ha='center', va='center')
+
+        ax.set_xlim(-1, max(num_neurons_layer1, num_neurons_layer2) * circle_radius * 2)
+        ax.set_ylim(-1, layer_distance + 1)
+        ax.set_aspect('equal', adjustable='box')
+        plt.axis('off')
+
+        if filename is not None:
+            plt.savefig(filename, bbox_inches='tight')
+        else:
+            plt.show()
 
   
 

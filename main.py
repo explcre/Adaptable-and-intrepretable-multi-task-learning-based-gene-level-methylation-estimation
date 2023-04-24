@@ -107,12 +107,14 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 # hdmsk:"hardmask":hard defined masked linear layer to define explainable (sparse) neural network (for decoder)
 # hdmsk-2enc:"hardmask-2encoder":hard defined masked linear layer to define encoder(2 layers,site-gene-pathway) and decoder.
 # hdmsk-4enc-self-fc"hardmask-4encoder-self-fc":hard defined masked linear layer to define encoder(4 layers,site-gene-fc-pathway-fc) and decoder.
-# ".5", or ".x" means , it will make the connection not defined by site-gene-pathway, mask 0.5(or other values) but not originally hard 0
+# ".50", or ".xx" means , it will make the connection not defined by site-gene-pathway, mask 0.5(or other values) but not originally hard 0
 # after"^"is regularization mode,
 #           "^all" regularize all weight
 #           "^dec" regularize all decoder weight
 #           "^sftall" regularize softmask(site-gene-pathway) all encoder and decoder.
 #           "^sftde"  regularize softmask(site-gene-pathway) decoder.
+# "*"means we will visualize the weight
+# "$20$" means mask 20% of the network site-gene-pathway connection
 # "no" : no skip connection of autoencoder
 
 multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'

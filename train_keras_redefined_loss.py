@@ -233,8 +233,8 @@ def random_mask_matrix_ones(matrix,value,option=""):
     return matrix
 
 def evaluate_accuracy_predict_random_mask_matrix_ones(matrix,value,option=""):
-    accuracy=0.0
-    return accuracy
+    predict_mask_accuracy=0.0
+    return predict_mask_accuracy
 
 
 
@@ -384,7 +384,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             global_iter_num = epoch * len(
                 data_loader) + i_data_batch + 1  # calculate it's which step start from training
             
-            ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
+            if "*" in skip_connection_mode:
+                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
             if toValidate:
                 normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                     datasetNameList, valid_label, valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
@@ -529,7 +530,9 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 #optimizer.step()
                 global_iter_num = epoch * len(
                     data_loader) + i_data_batch + 1  # calculate it's which step start from training
-                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"MGDA epoch "+str(global_iter_num))
+                
+                if "*" in skip_connection_mode:
+                    ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"MGDA epoch "+str(global_iter_num))
                 if toValidate:
                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                         datasetNameList, valid_label, valid_y_pred_list,
@@ -680,8 +683,9 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 # loss_single_classifier_loss_list[dataset_id].append(loss_single_classifier.item())
                 #optimizer.step()
                 global_iter_num = epoch * len(
-                    data_loader) + i_data_batch + 1  # calculate it's which step start from training
-                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"NashMTL epoch "+str(global_iter_num))
+                    data_loader) + i_data_batch + 1  # calculate it's which step start from 
+                if "*" in skip_connection_mode:
+                    ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"NashMTL epoch "+str(global_iter_num))
                 if toValidate:
                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
                         datasetNameList, valid_label, valid_y_pred_list,
@@ -1443,7 +1447,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         optimizer.step()
                         global_iter_num = epoch * len(
                             data_loader) + i_data_batch + 1  # calculate it's which step start from training
-                        ae.save_site_gene_pathway_weight_visualization(info=" epoch "+str(global_iter_num))
+                        if "*" in skip_connection_mode:
+                            ae.save_site_gene_pathway_weight_visualization(info=" epoch "+str(global_iter_num))
                         if toPrintInfo:
                             print("y_pred_list[0].shape")
                             print(y_pred_list[0].shape)
@@ -1597,7 +1602,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 optimizer.step()
                                 global_iter_num = epoch * len(data_loader) + i_data_batch + 1  # calculate it's which step start from training
                                 log_stage_name="single-classifier training stage"
-                                ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
+                                if "*" in skip_connection_mode:
+                                    ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
                                 
                                 if toValidate:
                                     normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(

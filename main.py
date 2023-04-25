@@ -115,6 +115,8 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 #           "^sftde"  regularize softmask(site-gene-pathway) decoder.
 # "*"means we will visualize the weight
 # "umap"means we will visualize the data
+# "umapo"means only visualize input
+# "umape" means visualize embedding
 # "$20$" means mask 20% of the network site-gene-pathway connection
 # "no" : no skip connection of autoencoder
 
@@ -152,8 +154,8 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&umap"]:#"VAE&hdmsk-4enc-self-fc&batchnorm"]:#,"VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["no~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
+    for skip_connection_mode in ["VAE&hdmsk-4enc-self-fc&batchnorm&umapo"]:#,"VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["no~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
@@ -209,8 +211,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 1#00#00 # *len(datasetNameList)
-            NN_epoch = 1#00#00  # *len(datasetNameList)
+            AE_epoch = 600#00#00 # *len(datasetNameList)
+            NN_epoch = 600#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -588,7 +590,37 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                                                                               selectNumPathwayMode,
                                                                                               selectNumResidueMode,
                                                                                               toFillPoint5, toValidate)
-                    else:
+                    else:# when multi dataset
+                        for i, dataset_name in enumerate(datasetNameList):
+                            if i > 0:
+                                # train_data_total = pd.read_csv(train_dataset_filename_list[i-1], index_col=0)
+                                train_data_total_last_0 = pd.read_csv(train_dataset_filename_list[i - 1],
+                                                                    index_col=0)  # ,skiprows=30,delimiter='\t')
+                                train_label_total_csv_last_0 = pd.read_csv(train_label_filename_list[i - 1],
+                                                                         index_col=0)  # .values.ravel()
+                                train_label_total_csv_df_last_0 = pd.DataFrame(train_label_total_csv_last_0)
+                                last_full_df_0 = pd.concat([train_data_total_last_0, train_label_total_csv_df_last_0.T], axis=0)
+                            train_data_total_0 = pd.read_csv(train_dataset_filename_list[i],
+                                                           index_col=0)  # ,skiprows=30,delimiter='\t')
+                            train_label_total_csv_0 = pd.read_csv(train_label_filename_list[i], index_col=0)  # .values.ravel()
+                            train_label_total_csv_df_0 = pd.DataFrame(train_label_total_csv_0)
+                            train_data_and_label_df_full_0 = pd.concat([train_data_total_0, train_label_total_csv_df_0.T], axis=0)
+
+                            train_data_and_label_df_0, selected_residue_name_list = data_preprocessing(
+                                train_data_and_label_df_full_0.T,
+                                isMultiDataset,
+                                datasetNameList, i,
+                                selected_residue_name_list)
+
+                            print("%d-th %s train_data_and_label_df_0" % (i, dataset_name))
+                            print(train_data_and_label_df_0)
+
+                            print("%d-th %s read train_data_total_0.shape:" % (i, dataset_name))
+                            print(train_data_total_0.shape)
+                            print(train_data_total_0)
+                        #now we get whole set of selected_residue_name_list from multiple datasets
+                    #################################################################
+                        print("now selected_residue_name_list length is"+str(len(selected_residue_name_list)))
                         for i, dataset_name in enumerate(datasetNameList):
                             if i > 0:
                                 # train_data_total = pd.read_csv(train_dataset_filename_list[i-1], index_col=0)
@@ -597,13 +629,13 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                 train_label_total_csv_last = pd.read_csv(train_label_filename_list[i - 1],
                                                                          index_col=0)  # .values.ravel()
                                 train_label_total_csv_df_last = pd.DataFrame(train_label_total_csv_last)
-                                last_full_df = pd.concat([train_data_total_last, train_label_total_csv_df_last.T], axis=0)
+                                last_full_df = pd.concat([train_data_total_last, train_label_total_csv_df_last.T], axis=0)#concat data and label of last dataset
                             train_data_total = pd.read_csv(train_dataset_filename_list[i],
                                                            index_col=0)  # ,skiprows=30,delimiter='\t')
                             train_label_total_csv = pd.read_csv(train_label_filename_list[i], index_col=0)  # .values.ravel()
                             train_label_total_csv_df = pd.DataFrame(train_label_total_csv)
-                            train_data_and_label_df_full = pd.concat([train_data_total, train_label_total_csv_df.T], axis=0)
-
+                            train_data_and_label_df_full = pd.concat([train_data_total, train_label_total_csv_df.T], axis=0)#concat data and label of current dataset
+                            '''
                             train_data_and_label_df, selected_residue_name_list = data_preprocessing(
                                 train_data_and_label_df_full.T,
                                 isMultiDataset,
@@ -611,18 +643,50 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                 selected_residue_name_list)
 
                             print("%d-th %s train_data_and_label_df" % (i, dataset_name))
-                            print(train_data_and_label_df)
+                            print(train_data_and_label_df)'''
 
-                            print("%d-th %s read train_data_total.shape:" % (i, dataset_name))
+                            print("after have all residue list%d-th %s read train_data_total.shape:" % (i, dataset_name))
                             print(train_data_total.shape)
                             print(train_data_total)
+                            #########################################  
                             if i == 0:
+                                '''
                                 multi_train_data_and_label_df = train_data_and_label_df
                                 multi_train_data_and_label_df.to_csv(
                                     path + date + "_" + code + str(
                                         i) + "-th multi_df).txt",
                                     sep='\t')
-                            else:
+                                '''
+                                train_data_and_label_df=train_data_and_label_df_full#added
+
+                                indexset_now = set(train_data_and_label_df_full.index.values.tolist())
+                                # print("indexset_now")
+                                # print(indexset_now)
+                                intersection_of_residue_now = indexset_now.intersection(selected_residue_name_list)
+                                # print("intersection_of_residue_now")
+                                # print(intersection_of_residue_now)
+                                intersection_of_residue_minus_existed_now = intersection_of_residue_now.difference(
+                                    set(train_data_and_label_df.index.values.tolist()))
+                                # print("intersection_of_residue_minus_existed_now")
+                                # print(intersection_of_residue_minus_existed_now)
+                                last_df_with_selected_residue_now = train_data_and_label_df_full.loc[
+                                    list(intersection_of_residue_minus_existed_now)]
+                                print("intersection_of_residue_minus_existed_now")
+                                print(last_df_with_selected_residue_now)
+                                train_data_and_label_df_now = pd.concat(
+                                    [train_data_and_label_df, last_df_with_selected_residue_now], axis=0)
+                                print("after 2st concat train_data_and_label_df_now")
+                                print(train_data_and_label_df_now)
+                                ###added
+                                multi_train_data_and_label_df=train_data_and_label_df_now
+                                multi_train_data_and_label_df.to_csv(
+                                    path + date + "_" + code + str(
+                                        i) + "-th multi_df).txt",
+                                    sep='\t')
+                                ####################################################
+                            else:#i>0
+                                #-----about last dataset----------------#
+                                '''
                                 print("last_full_df.loc[list(intersection_of_residue)]")
                                 indexset = set(last_full_df.index.values.tolist())
                                 intersection_of_residue = indexset.intersection(selected_residue_name_list)
@@ -634,7 +698,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                     [multi_train_data_and_label_df, last_df_with_selected_residue], axis=0)
                                 print("after 1st concat multi_train_data_and_label_df")
                                 print(multi_train_data_and_label_df)
-
+                                '''
+                                #---------------------------------------#
                                 indexset_now = set(train_data_and_label_df_full.index.values.tolist())
                                 # print("indexset_now")
                                 # print(indexset_now)

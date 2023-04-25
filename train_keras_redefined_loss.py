@@ -1206,12 +1206,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                               multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode,
                               skip_connection_mode=skip_connection_mode)#addedd skip connection mode
 
-                if "umap" in skip_connection_mode:
+                if "umapo" in skip_connection_mode or "umape" in skip_connection_mode:
                     import umap
                     #from sklearn.datasets import load_digits
 
                     #digits = load_digits()
-                    umap_embedding = umap.UMAP().fit_transform(gene_data_train.T)
+                    print(y_train)
+                    print(y_train.shape)
+                    umap_embedding = umap.UMAP().fit_transform(gene_data_train.T,y_train.T)#dataset.cpu())#gene_data_train.T)
                     import matplotlib.pyplot as plt
                     plt.clf() # clear figure
                     plt.cla() # clear axis
@@ -1227,7 +1229,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
 
                     # Display the plot in the notebook (optional)
                     plt.show()
-                    return ae,list()
+                    if "umapo" in skip_connection_mode:
+                        return ae,list()
                 # ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
                 #                    h_dim=HIDDEN_DIMENSION)  # in_dim=gene_data_train.shape[1]
 

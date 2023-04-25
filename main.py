@@ -114,6 +114,7 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 #           "^sftall" regularize softmask(site-gene-pathway) all encoder and decoder.
 #           "^sftde"  regularize softmask(site-gene-pathway) decoder.
 # "*"means we will visualize the weight
+# "umap"means we will visualize the data
 # "$20$" means mask 20% of the network site-gene-pathway connection
 # "no" : no skip connection of autoencoder
 
@@ -138,8 +139,8 @@ multi_task_training_policy= "ROnP"#"ReduceLROnPlateau"#"MGDA"#"ReduceLROnPlateau
 #               "~re-val"
 #               "pwre-val"
 #               "re-ss"
-#               "norm"
-#               "s-gdnm"simple gradnorm
+#               "norm"#TODO:to fix
+#               "s-gdnm"simple gradnorm # TODO:to fix
 #               "DRO"
 
 
@@ -151,7 +152,7 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-4enc-self-fc&batchnorm"]:#,"VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+    for skip_connection_mode in ["VAE&umap"]:#"VAE&hdmsk-4enc-self-fc&batchnorm"]:#,"VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
         for multi_task_training_policy in ["no~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
@@ -226,7 +227,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-4-23f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-4-24f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)
@@ -794,7 +795,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             time_train_end = time.time()
             # predict
             if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndCheckAccuracy) and (
-            not justToCheckBaseline):
+            not justToCheckBaseline) and ("umap" not in skip_connection_mode):#if umap , not predict
                 # test_data = pd.read_table(test_dataset_filename, index_col=0)
                 # test_label = pd.read_table(test_label_filename, index_col=0)
                 '''

@@ -77,6 +77,7 @@ SINGLE_TASK_UPPER_BOUND_WEIGHT=0.1
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 class CustomDataset(Dataset):
     def __init__(self, data,label,toDebug=False):
         self.label = label
@@ -225,17 +226,111 @@ def return_reg_loss(ae,skip_connection_mode="^dec"):
         
     return reg_loss
 
-
-def matrix_one_to_val(matrix,value,option=""):
+'''
+def matrix_ones_to_val(matrix,to_value,percentage,count,option=""):
     return matrix
 
-def random_mask_matrix_ones(matrix,value,option=""):
+def random_mask_matrix_ones(matrix,to_value,percentage,count,option=""):
     return matrix
 
-def evaluate_accuracy_predict_random_mask_matrix_ones(matrix,value,option=""):
+def evaluate_accuracy_predict_random_mask_matrix_ones(matrix,masked_matrix,true_matrix):
     predict_mask_accuracy=0.0
     return predict_mask_accuracy
+'''
 
+import pandas as pd
+import numpy as np
+
+def matrix_zeros_to_val(matrix, to_value):
+    """
+    Replace all the zeros in the matrix to `to_value`.
+    
+    Args:
+    matrix (pd.DataFrame): The input matrix (Pandas DataFrame)
+    to_value (int or float): The value to replace zeros with
+
+    Returns:
+    pd.DataFrame: The processed matrix with zeros replaced by `to_value`
+    """
+    return matrix.replace(0, to_value)
+
+def random_mask_matrix_ones_to_val(matrix, to_value, percentage, count, option=""):
+    """
+    Replace a percentage or a count of ones in the matrix with `to_value`.
+    
+    Args:
+    matrix (pd.DataFrame): The input matrix (Pandas DataFrame)
+    to_value (int or float): The value to replace ones with
+    percentage (float): Percentage of ones to replace (0 to 1)
+    count (int): Number of ones to replace
+    option (str): "p" for percentage, "c" for count
+
+    Returns:
+    pd.DataFrame: The processed matrix with ones replaced by `to_value`
+    list: The list of masked positions (each element is a 2D [x, x] representing row and column)
+    """
+    masked_matrix = matrix.copy()
+    ones_positions = np.argwhere(matrix.to_numpy() == 1)
+    masked_positions = []
+    
+    if option == "p":
+        count = int(len(ones_positions) * percentage)
+
+    elif option == "c":
+        assert count <= len(ones_positions), "Count must be less or equal to the total number of 1s in the matrix."
+
+    np.random.shuffle(ones_positions)
+    for i in range(count):
+        masked_positions.append(ones_positions[i].tolist())
+        masked_matrix.iat[masked_positions[-1][0], masked_positions[-1][1]] = to_value
+
+    return masked_matrix, masked_positions
+
+def evaluate_accuracy_predict_random_mask_matrix_ones(pred_matrix, true_matrix, masked_matrix, masked_position_list, threshold):
+    """
+    Evaluate accuracy and other statistics of `pred_matrix` compared to `true_matrix`.
+    
+    Args:
+    pred_matrix (pd.DataFrame): The predicted matrix (Pandas DataFrame)
+    true_matrix (pd.DataFrame): The true matrix (Pandas DataFrame)
+    masked_matrix (pd.DataFrame): The masked matrix (Pandas DataFrame)
+    masked_position_list (list): The list of masked positions
+    threshold (float): Threshold value for comparison
+
+    Returns:
+    list: learned_percentile_list
+    float: Average of learned_percentile_list
+    np.ndarray: Distribution of all the weights of pred_matrix
+    np.ndarray: Distribution of elements of pred_matrix which are on the position of 1s in true_matrix
+    np.ndarray: Distribution of elements of pred_matrix which are on the position of 0s of true_matrix
+    np.ndarray: Distribution of elements of pred_matrix which are on the position of masked_position_list
+    """
+    learned_percentile_list = []
+    for position in masked_position_list:
+        row, col = position
+        if pred_matrix.iat[row, col] >= threshold:
+            learned_percentile_list.append(1)
+        else:
+            learned_percentile_list.append(0)
+
+    average_learned_percentile = np.mean(learned_percentile_list)
+
+    all_weights = pred_matrix.values.flatten()
+    one_positions = np.argwhere(true_matrix.to_numpy() == 1)
+    zero_positions = np.argwhere(true_matrix.to_numpy() == 0)
+
+    ones_distribution = np.array([pred_matrix.iat[row, col] for row, col in one_positions])
+    zeros_distribution = np.array([pred_matrix.iat[row, col] for row, col in zero_positions])
+    masked_distribution = np.array([pred_matrix.iat[row, col] for row, col in masked_position_list])
+
+    return (learned_percentile_list, 
+        average_learned_percentile, 
+        all_weights, 
+        ones_distribution, 
+        zeros_distribution, 
+        masked_distribution)
+
+   
 
 
 def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,log_info,validation_info,single_task_accu_upper_bound_list=[0.93,0.73,0.80,0.94,0.79,0.98],sample_size_list=[53,88,79,49,160,118],multi_task_training_policy="~uniform"):
@@ -1111,6 +1206,28 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                               multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode,
                               skip_connection_mode=skip_connection_mode)#addedd skip connection mode
 
+                if "umap" in skip_connection_mode:
+                    import umap
+                    #from sklearn.datasets import load_digits
+
+                    #digits = load_digits()
+                    umap_embedding = umap.UMAP().fit_transform(gene_data_train.T)
+                    import matplotlib.pyplot as plt
+                    plt.clf() # clear figure
+                    plt.cla() # clear axis
+                    plt.close() # close window
+                    # Create a scatter plot of the UMAP embeddings
+                    plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], cmap='Spectral', s=5)
+                    plt.gca().set_aspect('equal', 'datalim')
+                    plt.title('UMAP projection of the gene_data_train dataset', fontsize=12)
+
+                    # Save the plot as a PNG image
+                    output_image_path = "umap_embedding.png"
+                    plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
+
+                    # Display the plot in the notebook (optional)
+                    plt.show()
+                    return ae,list()
                 # ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
                 #                    h_dim=HIDDEN_DIMENSION)  # in_dim=gene_data_train.shape[1]
 

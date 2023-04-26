@@ -495,8 +495,8 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             data_test_pred.to_csv(path + date + "_" + code +"separateAE-NN=" +
                                     str(separatelyTrainAE_NN) + "pred_list.txt", sep='\t')
                             if multiDatasetMode=='pretrain-finetune':
-                                single_trained_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
-                                                  str(separatelyTrainAE_NN) + "pred_list_single_trained.txt", sep='\t')
+                                single_trained_data_test_pred.to_csv(path + date + "_" + code + "sep=" +
+                                                  str(separatelyTrainAE_NN) + "pred_list_single_train.txt", sep='\t')
                                 finetune_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
                                                                  str(separatelyTrainAE_NN) + "pred_list_finetune.txt",
                                                                  sep='\t')

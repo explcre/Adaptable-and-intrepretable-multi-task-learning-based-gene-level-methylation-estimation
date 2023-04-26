@@ -101,13 +101,12 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 #############################################
 num_of_selected_residue_loop_set = [20]#,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
-skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
+skip_connection_mode = "VAE&unet&hdmsk-2enc$20$.50"#"unet"
 # "unet" : unet shape skip connection of autoencoder
 # "VAE" : Variational Autoencoder
 # hdmsk:"hardmask":hard defined masked linear layer to define explainable (sparse) neural network (for decoder)
 # hdmsk-2enc:"hardmask-2encoder":hard defined masked linear layer to define encoder(2 layers,site-gene-pathway) and decoder.
 # hdmsk-4enc-self-fc"hardmask-4encoder-self-fc":hard defined masked linear layer to define encoder(4 layers,site-gene-fc-pathway-fc) and decoder.
-# ".50", or ".xx" means , it will make the connection not defined by site-gene-pathway, mask 0.5(or other values) but not originally hard 0
 # after"^"is regularization mode,
 #           "^all" regularize all weight
 #           "^dec" regularize all decoder weight
@@ -117,7 +116,11 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc"#"unet"
 # "umap"means we will visualize the data
 # "umapo"means only visualize input
 # "umape" means visualize embedding
-# "$20$" means mask 20% of the network site-gene-pathway connection
+# "umapet+100+" means visualize embedding throughout the training, the number inside + is the number of epoch when draw umap
+
+# "@c@" mask option is count,"@p@"mask option is probability
+# "$20$" means mask 20percent/count(based on mask option) of the network site-gene-pathway connection
+# ".50.", or ".xx." means , it will make the connection not defined by site-gene-pathway, mask 0.50(or other values) but not originally hard 0
 # "no" : no skip connection of autoencoder
 
 multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'
@@ -154,8 +157,8 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-4enc-self-fc&batchnorm&umapo"]:#,"VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["no~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
+    for skip_connection_mode in ["VAE&unet&hdmsk-2enc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+        for multi_task_training_policy in ["no~re-val"]:#,"no~pwre-val"]:#,"no~ran","ROnP~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
@@ -211,8 +214,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 600#00#00 # *len(datasetNameList)
-            NN_epoch = 600#00#00  # *len(datasetNameList)
+            AE_epoch = 1#200#00#00 # *len(datasetNameList)
+            NN_epoch = 1#200#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -665,6 +668,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                 intersection_of_residue_now = indexset_now.intersection(selected_residue_name_list)
                                 # print("intersection_of_residue_now")
                                 # print(intersection_of_residue_now)
+                                '''
                                 intersection_of_residue_minus_existed_now = intersection_of_residue_now.difference(
                                     set(train_data_and_label_df.index.values.tolist()))
                                 # print("intersection_of_residue_minus_existed_now")
@@ -674,11 +678,12 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                 print("intersection_of_residue_minus_existed_now")
                                 print(last_df_with_selected_residue_now)
                                 train_data_and_label_df_now = pd.concat(
-                                    [train_data_and_label_df, last_df_with_selected_residue_now], axis=0)
+                                    [train_data_and_label_df, last_df_with_selected_residue_now], axis=0)'''
+                                train_data_and_label_df_now=train_data_and_label_df_full.loc[list(intersection_of_residue_now)]#added
                                 print("after 2st concat train_data_and_label_df_now")
                                 print(train_data_and_label_df_now)
                                 ###added
-                                multi_train_data_and_label_df=train_data_and_label_df_now
+                                multi_train_data_and_label_df=train_data_and_label_df_now#=train_data_and_label_df_full.loc[list(intersection_of_residue_now)]
                                 multi_train_data_and_label_df.to_csv(
                                     path + date + "_" + code + str(
                                         i) + "-th multi_df).txt",
@@ -706,6 +711,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                 intersection_of_residue_now = indexset_now.intersection(selected_residue_name_list)
                                 # print("intersection_of_residue_now")
                                 # print(intersection_of_residue_now)
+                                '''
                                 intersection_of_residue_minus_existed_now = intersection_of_residue_now.difference(
                                     set(train_data_and_label_df.index.values.tolist()))
                                 # print("intersection_of_residue_minus_existed_now")
@@ -715,7 +721,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                 print("intersection_of_residue_minus_existed_now")
                                 print(last_df_with_selected_residue_now)
                                 train_data_and_label_df_now = pd.concat(
-                                    [train_data_and_label_df, last_df_with_selected_residue_now], axis=0)
+                                    [train_data_and_label_df, last_df_with_selected_residue_now], axis=0)'''
+                                train_data_and_label_df_now=train_data_and_label_df_full.loc[list(intersection_of_residue_now)]#added
                                 print("after 2st concat train_data_and_label_df_now")
                                 print(train_data_and_label_df_now)
 
@@ -860,7 +867,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             time_train_end = time.time()
             # predict
             if isPredict and (not just_check_data) and (not onlyGetPredictionFromLocalAndCheckAccuracy) and (
-            not justToCheckBaseline) and ("umap" not in skip_connection_mode):#if umap , not predict
+            not justToCheckBaseline) and ("umapo" not in skip_connection_mode):#if umap , not predict
                 # test_data = pd.read_table(test_dataset_filename, index_col=0)
                 # test_label = pd.read_table(test_label_filename, index_col=0)
                 '''
@@ -944,7 +951,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             print("predict time")
             predict_time=time_predict_end - time_train_end
             print(predict_time)
-            if not justToCheckBaseline:
+            if not justToCheckBaseline and ("umapo" not in skip_connection_mode):
                 tools.print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
                                                                 datasetNameList,
                                                                 num_of_selected_residue,

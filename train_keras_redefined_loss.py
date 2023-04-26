@@ -65,6 +65,11 @@ import min_norm_solvers
 from torch.utils.data import Dataset
 import random
 #from methods.weight_methods import WeightMethods
+
+import re
+import umap
+import matplotlib.pyplot as plt
+
 logger = SummaryWriter(log_dir="tensorboard_log/")
 
 warnings.filterwarnings("ignore")
@@ -77,6 +82,110 @@ SINGLE_TASK_UPPER_BOUND_WEIGHT=0.1
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+def extract_value_between_signs(input_string, sign="$"):
+    if sign == ".":
+        pattern = r"\.(\d+)(?:\.|$)"
+    elif sign == "@":
+        pattern = fr"{re.escape(sign)}(.*?){re.escape(sign)}"
+    else:
+        pattern = fr"{re.escape(sign)}(\d+(?:\.\d+)?){re.escape(sign)}"
+
+    match = re.search(pattern, input_string)
+
+    if match:
+        if sign == ".":
+            num_str = match.group(1)
+            num_digits = len(num_str)
+            num = int(num_str)
+            return num / (10 ** num_digits)
+        elif sign == "@":
+            return match.group(1)
+        else:
+            return float(match.group(1)) if "." in match.group(1) else int(match.group(1))
+    else:
+        return None
+
+
+def get_condition_value(row):
+    for i, value in enumerate(row):
+        if value == 1 or value == 0:
+            return i * 2 + value
+
+def draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="original",training_setting_info=""):
+    #from sklearn.datasets import load_digits
+
+    #digits = load_digits()
+    print(y_train)
+    print(y_train.shape)
+    '''
+    Ground TruthIBD
+    Ground TruthMS
+    Ground TruthPsoriasis
+    Ground TruthRA 
+    Ground TruthSLE 
+    Ground Truthdiabetes1
+    '''
+    '''
+    y_train_onehot = pd.get_dummies(y_train.T, columns = ['Ground TruthIBD','Ground TruthMS','Ground TruthPsoriasis','Ground TruthRA',
+                                                            'Ground TruthSLE','Ground Truthdiabetes1'], drop_first=True)
+    print(y_train_onehot )
+    conditions = ['IBD', 'MS', 'Psoriasis', 'RA', 'SLE', 'diabetes1']
+    y_train_columns_list = y_train.T.columns.tolist()
+    merged_y_train = {f'{condition}_{i + 1}': y_train.T.loc[:, 'Ground Truth'+condition].iloc[i] for i in range(len(y_train_columns_list)) for condition in conditions}
+    new_merged_y_train = pd.DataFrame(merged_y_train, index=[0])
+    print(new_merged_y_train)
+
+    y_train_onehot=y_train_onehot.replace([1,0],[True,False])
+    print(y_train_onehot )'''
+
+
+    # Apply the function to the DataFrame and store the results in a new DataFrame with a single row
+    new_y_train_df = pd.DataFrame(y_train.T.apply(get_condition_value, axis=1)).T
+    print(new_y_train_df)
+    #new_y_train_df.columns = ["Condition"]
+    new_y_train_df.index.name = "Index"
+
+    print(new_y_train_df)
+    umap_embedding = umap.UMAP(random_state=42).fit_transform(gene_data_train.T,new_y_train_df.T)#,y_train_onehot)#dataset.cpu())#gene_data_train.T)
+    
+    plt.clf() # clear figure
+    plt.cla() # clear axis
+    plt.close() # close window
+        # Prepare the legend labels and colors
+    umap_labels = ["IBD_F", "IBD_T", "MS_F", "MS_T", "Psoriasis_F", "Psoriasis_T", "RA_F", "RA_T", "SLE_F", "SLE_T", "diabetes1_F", "diabetes1_T"]
+    # Create a scatter plot of the UMAP embeddings
+    '''
+    plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1],c=new_y_train_df.T, cmap='Spectral', s=5,label=umap_labels)
+    plt.gca().set_aspect('equal', 'datalim')'''
+    #plt.colorbar(boundaries=np.arange(11)-0.5).set_ticks(["IBD_F","IBD_T","MS_F","MS_T","Psoriasis_F","Psoriasis_T","RA_F","RA_T","SLE_F","SLE_T","diabetes1_F","diabetes1_T"])#np.arange(10)
+    colors = plt.cm.Spectral(np.linspace(0, 1, len(umap_labels)))
+
+    # Create the scatter plot
+    for label, color in zip(range(1, 13), colors):
+        indices = (new_y_train_df.T == label).values.ravel()
+        plt.scatter(umap_embedding[indices, 0], umap_embedding[indices, 1], c=[color], cmap='Spectral', s=5, label=umap_labels[label - 1])
+
+    plt.gca().set_aspect('equal', 'datalim')
+    
+    # Add the legend
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+    
+    plt.title('UMAP projection of the gene_data_train dataset '+stage_info+' (num of site='+str(num_of_selected_residue)+')', fontsize=12)
+
+    # Save the plot as a PNG image
+    umap_dir_path = "./umap/"
+
+    if not os.path.exists(umap_dir_path):
+        os.makedirs(umap_dir_path)
+        print("Directory", umap_dir_path, "created.")
+    else:
+        print("Directory", umap_dir_path, "already exists.")
+    output_image_path = umap_dir_path+stage_info+"-site-"+str(num_of_selected_residue)+training_setting_info+"-umap.png" #"original
+    plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
+
+    # Display the plot in the notebook (optional)
+    plt.show()
+    return
 
 class CustomDataset(Dataset):
     def __init__(self, data,label,toDebug=False):
@@ -1169,6 +1278,23 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 myMeiNN = None
                 print("DEBUG INFO:we entered to train MeiNN pytorch code")
                 gene_data_train = np.load(path + date + "_" + code + "gene_data_train)" + ".txt.npy")
+
+                ############if have random mask on site-gene-pathway evaluation#############
+                # "$20$" means mask 20% of the network site-gene-pathway connection
+                # ".50", or ".xx" means , it will make the connection not defined by site-gene-pathway, mask 0.5(or other values) but not originally hard 0 
+                umap_draw_step=extract_value_between_signs(skip_connection_mode,"+")
+                soft_mask_to_value=extract_value_between_signs(skip_connection_mode,".")
+                mask_option=extract_value_between_signs(skip_connection_mode,"@")
+                mask_percentage=extract_value_between_signs(skip_connection_mode,"$")
+                if umap_draw_step is not None:
+                    print("umap_draw_step = " + str(umap_draw_step))
+                if soft_mask_to_value is not None:
+                    print("soft_mask_to_value = " + str(soft_mask_to_value))
+                if mask_option is not None:
+                    print("mask_option = " + str(mask_option))
+                if mask_percentage is not None:
+                    print("mask_percentage ="+str(mask_percentage))
+                ###################################################################
                 my_gene_to_residue_info = gene_to_residue_or_pathway_info(gene_to_id_map, residue_to_id_map,
                                                                           gene_to_residue_map,
                                                                           count_connection,
@@ -1206,29 +1332,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                               multiDatasetMode=multiDatasetMode, datasetNameList=datasetNameList, lossMode=lossMode,
                               skip_connection_mode=skip_connection_mode)#addedd skip connection mode
 
-                if "umapo" in skip_connection_mode or "umape" in skip_connection_mode:
-                    import umap
-                    #from sklearn.datasets import load_digits
-
-                    #digits = load_digits()
-                    print(y_train)
-                    print(y_train.shape)
-                    umap_embedding = umap.UMAP().fit_transform(gene_data_train.T,y_train.T)#dataset.cpu())#gene_data_train.T)
-                    import matplotlib.pyplot as plt
-                    plt.clf() # clear figure
-                    plt.cla() # clear axis
-                    plt.close() # close window
-                    # Create a scatter plot of the UMAP embeddings
-                    plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], cmap='Spectral', s=5)
-                    plt.gca().set_aspect('equal', 'datalim')
-                    plt.title('UMAP projection of the gene_data_train dataset', fontsize=12)
-
-                    # Save the plot as a PNG image
-                    output_image_path = "umap_embedding.png"
-                    plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
-
-                    # Display the plot in the notebook (optional)
-                    plt.show()
+                if "umapo" in skip_connection_mode or "umapet" in skip_connection_mode:
+                    draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="original",training_setting_info=date)
                     if "umapo" in skip_connection_mode:
                         return ae,list()
                 # ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
@@ -1370,6 +1475,12 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
                             if len(datasetNameList) == 5:
                                 out, [y_pred1, y_pred2, y_pred3, y_pred4, y_pred5], embedding = ae(images) #gene_data_train_Tensor.T)#partial batch
+                            
+                            if "umapet" in skip_connection_mode and (epoch+1)%umap_draw_step ==0:
+                                print("embedding.shape")
+                                print(embedding.shape)
+                                draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="training-epoch-"+str(epoch),training_setting_info=date)
+                                
                             '''
                             y_pred1_masked = y_pred1
                             y_pred2_masked = y_pred2

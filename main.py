@@ -211,11 +211,11 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_pathway = num_of_selected_residue / 2  # TODO: to redesgin the function of num_of_selected_pathway
             isMultiDataset = True
 
-            datasetNameList = ['diabetes1', 'IBD', 'MS', 'Psoriasis', 'RA',
-                               'SLE']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+            datasetNameList = [ 'IBD', 'MS', 'Psoriasis', 'RA',
+                               'SLE','diabetes1']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 1#200#00#00 # *len(datasetNameList)
-            NN_epoch = 1#200#00#00  # *len(datasetNameList)
+            AE_epoch = 5#200#00#00 # *len(datasetNameList)
+            NN_epoch = 5#200#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)

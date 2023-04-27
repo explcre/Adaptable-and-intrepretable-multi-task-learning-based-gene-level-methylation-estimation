@@ -46,7 +46,7 @@ import h5py
 
 from sklearn.metrics import calinski_harabasz_score
 from keras import constraints
-
+import matplotlib.pyplot as plt
 
 def _sampling_function(args):
     """
@@ -75,6 +75,196 @@ class gene_to_residue_or_pathway_info:
         self.gene_pathway = gene_pathway
         self.gene_pathway_reversed = gene_pathway_reversed
         #self.gene_pathway_tensor=gene_pathway_tensor
+
+    def soften(self,to_value,part_option="all"):#part_option: which part? site-gene or gene-pathway or both
+        if "site" in part_option or "all" in part_option:
+            self.gene_to_residue_map_hard=self.gene_to_residue_map
+
+            self.gene_to_residue_map_softed=self.gene_to_residue_map#=pd.DataFrame(self.gene_to_residue_map).replace(0, to_value)
+            for i,row_item in enumerate(self.gene_to_residue_map_softed):
+                for j,col_item in enumerate(row_item):
+                    if col_item==0:
+                        self.gene_to_residue_map_softed[i][j]=to_value
+            self.gene_to_residue_map=self.gene_to_residue_map_softed
+        if "path" in part_option or "all" in part_option:
+            self.gene_pathway_hard=self.gene_pathway
+            self.gene_pathway_softed=pd.DataFrame(self.gene_pathway).replace(0, to_value)
+            self.gene_pathway=self.gene_pathway_softed
+
+    def mask_info(self,to_value, percentage, count,option="p",part_option="all"):#part_option: which part? site-gene or gene-pathway or both
+        self.gene_pathway_masked,self.gene_pathway_masked_position_list=self.random_mask_matrix_ones_to_val(self.gene_pathway, to_value, percentage, count, option)
+        self.gene_pathway=self.gene_pathway_masked
+        self.gene_to_residue_map_masked,self.gene_to_residue_map_masked_position_list=self.random_mask_matrix_ones_to_val(self.gene_to_residue_map, to_value, percentage, count, option)
+        self.gene_to_residue_map=self.gene_to_residue_map_masked
+
+    def evaluate_weight(self, pred_matrix,threshold,part_option="path",data_name=""):
+        if part_option=="path":
+            (learned_percentile_list, 
+                average_learned_percentile, 
+                all_weights, 
+                ones_distribution, 
+                zeros_distribution, 
+                masked_distribution)=self.evaluate_accuracy_predict_random_mask_matrix_ones(pred_matrix, self.gene_pathway_hard, self.gene_pathway, self.gene_pathway_masked_position_list, threshold,part_option+data_name)
+
+            return (learned_percentile_list, 
+                average_learned_percentile, 
+                all_weights, 
+                ones_distribution, 
+                zeros_distribution, 
+                masked_distribution)
+        if part_option=="site":
+            (learned_percentile_list, 
+                average_learned_percentile, 
+                all_weights, 
+                ones_distribution, 
+                zeros_distribution, 
+                masked_distribution)=self.evaluate_accuracy_predict_random_mask_matrix_ones(pred_matrix, self.gene_to_residue_map_hard, self.gene_to_residue_map, self.gene_to_residue_map_masked_position_list, threshold,part_option+data_name)
+            return (learned_percentile_list, 
+                average_learned_percentile, 
+                all_weights, 
+                ones_distribution, 
+                zeros_distribution, 
+                masked_distribution)
+    
+    def random_mask_matrix_ones_to_val(self,matrix, to_value, percentage, count, option=""):
+        """
+        Replace a percentage or a count of ones in the matrix with `to_value`.
+        
+        Args:
+        matrix (pd.DataFrame): The input matrix (Pandas DataFrame)
+        to_value (int or float): The value to replace ones with
+        percentage (float): Percentage of ones to replace (0 to 1)
+        count (int): Number of ones to replace
+        option (str): "p" for percentage, "c" for count
+
+        Returns:
+        pd.DataFrame: The processed matrix with ones replaced by `to_value`
+        list: The list of masked positions (each element is a 2D [x, x] representing row and column)
+        """
+        toDebug=False
+        masked_matrix = matrix.copy()
+        if (isinstance(matrix,list)):
+            print("it's list , convert to dataframe first")
+            masked_matrix=pd.DataFrame(masked_matrix)
+        ones_positions = np.argwhere(masked_matrix.to_numpy() == 1)
+        if toDebug:
+            print("ones_potitions=",ones_positions)
+            print("len ones_potitions=",len(ones_positions))
+        masked_positions = []
+        
+        if option == "p":
+            count = int(len(ones_positions) * percentage)
+
+        elif option == "c":
+            assert count <= len(ones_positions), "Count must be less or equal to the total number of 1s in the matrix."
+        print("count of mask position=",count)
+        np.random.shuffle(ones_positions)
+        if toDebug:
+            print("shuffled ones_potitions=",ones_positions)
+        for i in range(count):
+            masked_positions.append(ones_positions[i].tolist())
+            masked_matrix.iat[masked_positions[-1][0], masked_positions[-1][1]] = to_value
+        
+        if (isinstance(matrix,list)):
+            if toDebug:
+                print("dataframe masked matrix=")
+                print(masked_matrix)
+            masked_matrix=masked_matrix.values.tolist()
+        return masked_matrix, masked_positions
+
+    def evaluate_accuracy_predict_random_mask_matrix_ones(self,pred_matrix, true_matrix, masked_matrix, masked_position_list, threshold,data_name):
+        """
+        Evaluate accuracy and other statistics of `pred_matrix` compared to `true_matrix`.
+        
+        Args:
+        pred_matrix (pd.DataFrame): The predicted matrix (Pandas DataFrame)
+        true_matrix (pd.DataFrame): The true matrix (Pandas DataFrame)
+        masked_matrix (pd.DataFrame): The masked matrix (Pandas DataFrame)
+        masked_position_list (list): The list of masked positions
+        threshold (float): Threshold value for comparison
+
+        Returns:
+        list: learned_percentile_list
+        float: Average of learned_percentile_list
+        np.ndarray: Distribution of all the weights of pred_matrix
+        np.ndarray: Distribution of elements of pred_matrix which are on the position of 1s in true_matrix
+        np.ndarray: Distribution of elements of pred_matrix which are on the position of 0s of true_matrix
+        np.ndarray: Distribution of elements of pred_matrix which are on the position of masked_position_list
+        """
+        if (isinstance(true_matrix,list)):
+            print("true_matrix is list , convert to dataframe first")
+            true_matrix=pd.DataFrame(true_matrix)
+        if (isinstance(masked_matrix,list)):
+            print("masked matrixis list , convert to dataframe first")
+            masked_matrix=pd.DataFrame(masked_matrix)
+        pred_matrix=pd.DataFrame(pred_matrix.cpu().detach().numpy())
+        learned_percentile_list = []
+        for position in masked_position_list:
+            row, col = position
+            if pred_matrix.iat[row, col] >= threshold:
+                learned_percentile_list.append(1)
+            else:
+                learned_percentile_list.append(0)
+
+        average_learned_percentile = np.mean(learned_percentile_list)
+
+        all_weights = pred_matrix.values.flatten()
+        one_positions = np.argwhere(true_matrix.to_numpy() == 1)
+        zero_positions = np.argwhere(true_matrix.to_numpy() == 0)
+
+        ones_distribution = np.array([pred_matrix.iat[row, col] for row, col in one_positions])
+        zeros_distribution = np.array([pred_matrix.iat[row, col] for row, col in zero_positions])
+        masked_distribution = np.array([pred_matrix.iat[row, col] for row, col in masked_position_list])
+        
+        funciton_name="eval_mask"
+        # Save plots
+        plt.clf() # clear figure
+        plt.cla() # clear axis
+        plt.close() # close window
+
+        plt.hist(all_weights, bins=30)
+        plt.xlabel('Weight')
+        plt.ylabel('Frequency')
+        plt.title('All Weights Distribution')
+        plt.savefig(f'{funciton_name}_{data_name}_all_weights_distribution.png')
+        plt.clf()
+
+        plt.hist(ones_distribution, bins=30)
+        plt.xlabel('Weight')
+        plt.ylabel('Frequency')
+        plt.title('Ones Distribution')
+        plt.savefig(f'{funciton_name}_{data_name}_ones_distribution.png')
+        plt.clf()
+
+        plt.hist(zeros_distribution, bins=30)
+        plt.xlabel('Weight')
+        plt.ylabel('Frequency')
+        plt.title('Zeros Distribution')
+        plt.savefig(f'{funciton_name}_{data_name}_zeros_distribution.png')
+        plt.clf()
+
+        plt.hist(masked_distribution, bins=30)
+        plt.xlabel('Weight')
+        plt.ylabel('Frequency')
+        plt.title('Masked Distribution')
+        plt.savefig(f'{funciton_name}_{data_name}_masked_distribution.png')
+        plt.clf()
+
+        plt.bar(range(len(learned_percentile_list)), learned_percentile_list)
+        plt.xlabel('Position Index')
+        plt.ylabel('Learned Percentile')
+        plt.title('Learned Percentile List')
+        plt.savefig(f'{funciton_name}_{data_name}_learned_percentile_list.png')
+        plt.clf()
+
+        return (learned_percentile_list, 
+            average_learned_percentile, 
+            all_weights, 
+            ones_distribution, 
+            zeros_distribution, 
+            masked_distribution)
+
+
 
 
 class MeiNN:

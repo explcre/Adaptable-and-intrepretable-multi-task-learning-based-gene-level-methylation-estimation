@@ -99,7 +99,7 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [20]#,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [20,200]#,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
 skip_connection_mode = "VAE&unet&hdmsk-2enc$20$.50"#"unet"
 # "unet" : unet shape skip connection of autoencoder
@@ -214,8 +214,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = [ 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE','diabetes1']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 5#200#00#00 # *len(datasetNameList)
-            NN_epoch = 5#200#00#00  # *len(datasetNameList)
+            AE_epoch = 800#200#00#00 # *len(datasetNameList)
+            NN_epoch = 800#200#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)

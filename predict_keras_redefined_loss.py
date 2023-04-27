@@ -496,9 +496,9 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                                     str(separatelyTrainAE_NN) + "pred_list.txt", sep='\t')
                             if multiDatasetMode=='pretrain-finetune':
                                 single_trained_data_test_pred.to_csv(path + date + "_" + code + "sep=" +
-                                                  str(separatelyTrainAE_NN) + "pred_list_single_train.txt", sep='\t')
+                                                  str(separatelyTrainAE_NN) + "pdlst_sgl_train.txt", sep='\t')
                                 finetune_data_test_pred.to_csv(path + date + "_" + code + "separateAE-NN=" +
-                                                                 str(separatelyTrainAE_NN) + "pred_list_finetune.txt",
+                                                                 str(separatelyTrainAE_NN) + "pdlist_ft.txt",
                                                                  sep='\t')
                             '''
                             data_test_pred = pd.DataFrame(pred_out1.detach().numpy())
@@ -528,8 +528,8 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             '''
                             data_test_ae_out = pd.DataFrame(ae_out.cpu().detach().numpy())
                             data_test_ae_out.to_csv(
-                                path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",
-                                sep='\t')
+                                path + date + "_" + code +"AEo.txt",
+                                sep='\t')#path + date + "_" + code + "_gene_level" + "(" + data_type + '_' + model_type + "AE_output).txt",sep='\t')
                             if multiDatasetMode=='pretrain-finetune':
                                 single_trained_ae_out = pd.DataFrame(single_trained_ae_out.cpu().detach().numpy())
                                 '''single_trained_ae_out.to_csv(

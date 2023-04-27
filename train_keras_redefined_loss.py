@@ -111,7 +111,16 @@ def get_condition_value(row):
         if value == 1 or value == 0:
             return i * 2 + value
 
+def multi_label_to_one_dim(y_train):
+    umap_labels = ["IBD_F", "IBD_T", "MS_F", "MS_T", "Psoriasis_F", "Psoriasis_T", "RA_F", "RA_T", "SLE_F", "SLE_T", "diabetes1_F", "diabetes1_T"]
+    new_y_train_df = pd.DataFrame(y_train.T.apply(get_condition_value, axis=1)).T
+    print(new_y_train_df)
+    #new_y_train_df.columns = ["Condition"]
+    new_y_train_df.index.name = "Index"
+
+    return new_y_train_df
 def draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="original",training_setting_info=""):
+    umap_labels = ["IBD_F", "IBD_T", "MS_F", "MS_T", "Psoriasis_F", "Psoriasis_T", "RA_F", "RA_T", "SLE_F", "SLE_T", "diabetes1_F", "diabetes1_T"]
     #from sklearn.datasets import load_digits
 
     #digits = load_digits()
@@ -146,13 +155,20 @@ def draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="origin
     new_y_train_df.index.name = "Index"
 
     print(new_y_train_df)
+    #for n_neighbours in (2, 5, 10, 20, 50, 100, 200):
     umap_embedding = umap.UMAP(random_state=42).fit_transform(gene_data_train.T,new_y_train_df.T)#,y_train_onehot)#dataset.cpu())#gene_data_train.T)
-    
+    #umap_embedding_2 = umap.UMAP(random_state=42).fit_transform(gene_data_train.T)
+    ###
+    from sklearn.cluster import KMeans
+    if "original" in stage_info:
+        kmeans = KMeans(n_clusters=12, random_state=0).fit(umap_embedding)
+        kmeans_fit_predict=KMeans(n_clusters=12, random_state=0).fit_predict(umap_embedding,y_train)
+    ####
     plt.clf() # clear figure
     plt.cla() # clear axis
     plt.close() # close window
         # Prepare the legend labels and colors
-    umap_labels = ["IBD_F", "IBD_T", "MS_F", "MS_T", "Psoriasis_F", "Psoriasis_T", "RA_F", "RA_T", "SLE_F", "SLE_T", "diabetes1_F", "diabetes1_T"]
+    
     # Create a scatter plot of the UMAP embeddings
     '''
     plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1],c=new_y_train_df.T, cmap='Spectral', s=5,label=umap_labels)
@@ -180,13 +196,16 @@ def draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="origin
         print("Directory", umap_dir_path, "created.")
     else:
         print("Directory", umap_dir_path, "already exists.")
-    output_image_path = umap_dir_path+stage_info+"-site-"+str(num_of_selected_residue)+training_setting_info+"-umap.png" #"original
+    output_image_path = umap_dir_path+stage_info+"-site-"+str(num_of_selected_residue)+"-"+training_setting_info+"-umap.png" #"original
     plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
 
     # Display the plot in the notebook (optional)
     plt.show()
-    return
-
+    if "original" in stage_info:
+        return kmeans,kmeans_fit_predict
+    else:
+        return
+    
 class CustomDataset(Dataset):
     def __init__(self, data,label,toDebug=False):
         self.label = label
@@ -514,7 +533,7 @@ def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,
 
 def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_train_Tensor,toMask,y_train_T_tensor,criterion,
                          path,date,pth_name,toDebug,global_iter_num,log_stage_name,code,toValidate,gene_data_valid_Tensor,valid_label,
-                         multi_task_training_policy,learning_rate_list,skip_connection_mode):
+                         multi_task_training_policy,learning_rate_list,skip_connection_mode,umap_draw_step,num_of_selected_residue,y_train):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     loss_list = []
     for epoch in range(num_epochs):
@@ -527,6 +546,12 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                 if toValidate:
                     valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)#for validation
+            #umap
+            if "umapet" in skip_connection_mode and (epoch+1)%umap_draw_step ==0:
+                print("embedding.shape")
+                print(embedding.shape)
+                draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="3ndstage-train-epo-"+str(epoch),training_setting_info=date)
+            ##
             #to GPU
             #y_pred_list=y_pred_list.to(device)
             #valid_y_pred_list=valid_y_pred_list.to(device)
@@ -1248,6 +1273,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
     
     gene_data_train_Tensor=gene_data_train_Tensor.to(device)
     gene_data_valid_Tensor=gene_data_valid_Tensor.to(device)
+
     if True or (model_type == "VAE" or model_type == "AE" or model_type == "MeiNN"):
         # encoding_dim = 400
         latent_dim = HIDDEN_DIMENSION
@@ -1285,7 +1311,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 umap_draw_step=extract_value_between_signs(skip_connection_mode,"+")
                 soft_mask_to_value=extract_value_between_signs(skip_connection_mode,".")
                 mask_option=extract_value_between_signs(skip_connection_mode,"@")
-                mask_percentage=extract_value_between_signs(skip_connection_mode,"$")
+                mask_percentage=float(extract_value_between_signs(skip_connection_mode,"$"))/100.0
                 if umap_draw_step is not None:
                     print("umap_draw_step = " + str(umap_draw_step))
                 if soft_mask_to_value is not None:
@@ -1301,6 +1327,19 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                                                           gene_to_residue_map_reversed,
                                                                           gene_pathway_needed,
                                                                           gene_pathway_needed_reversed)
+                ##############random mask evaluation###############################
+                if mask_option is not None:
+                    print( my_gene_to_residue_info.gene_pathway)
+                    print( my_gene_to_residue_info.gene_to_residue_map)
+                    my_gene_to_residue_info.soften(soft_mask_to_value,part_option="all")
+                    print("my_gene_to_residue_info softened")
+                    print( my_gene_to_residue_info.gene_pathway)
+                    print( my_gene_to_residue_info.gene_to_residue_map)
+                    my_gene_to_residue_info.mask_info(soft_mask_to_value, mask_percentage, mask_percentage,option=mask_option,part_option="all")
+                    print("my_gene_to_residue_info site-gene-pathway prior random masked")
+                    print( my_gene_to_residue_info.gene_pathway)
+                    print( my_gene_to_residue_info.gene_to_residue_map)
+                    #return ae,list()
                 ##########added from train_pytorch.py############
                 num_epochs = AE_epoch_from_main
                 if batch_size_mode == "ratio":
@@ -1333,7 +1372,22 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                               skip_connection_mode=skip_connection_mode)#addedd skip connection mode
 
                 if "umapo" in skip_connection_mode or "umapet" in skip_connection_mode:
-                    draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="original",training_setting_info=date)
+                    kmeans,kmeans_fit_predict=draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="original",training_setting_info=date)
+                    toKmeans=False
+                    if toKmeans:
+                        umap_fit_valid=umap.UMAP(random_state=42).fit_transform(valid_data)
+                        kmeans_valid=kmeans.predict(umap_fit_valid)
+                        print(kmeans_valid)
+                        print(valid_label)
+                        valid_label_one_dim=multi_label_to_one_dim(valid_label)
+                        kmeans_valid_df=pd.DataFrame(kmeans_valid)
+                        valid_label_df=pd.DataFrame(valid_label)
+                        valid_label_one_dim_df=pd.DataFrame(valid_label_one_dim)
+                        kmeans_valid_df.to_csv("4-26validlabelkmeans.csv")
+                        valid_label_df.to_csv("4-26validlabel.csv")
+                        valid_label_one_dim_df.to_csv("4-26validlabel-onedim.csv")
+                        #print(kmeans_fit_predict.predict(umap_fit_valid))
+                        #print(valid_label)
                     if "umapo" in skip_connection_mode:
                         return ae,list()
                 # ae = AE.Autoencoder(in_dim=gene_data_train.shape[0],
@@ -1479,8 +1533,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             if "umapet" in skip_connection_mode and (epoch+1)%umap_draw_step ==0:
                                 print("embedding.shape")
                                 print(embedding.shape)
-                                draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="training-epoch-"+str(epoch),training_setting_info=date)
-                                
+                                draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="1ststage-train-epo-"+str(epoch),training_setting_info=date)
+                                #draw_umap(out.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="1ststage-decoderout-train-epo-"+str(epoch),training_setting_info=date)
+                                #draw_umap(y_pred_list.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="1ststage-decoderout-train-epo-"+str(epoch),training_setting_info=date)
                             '''
                             y_pred1_masked = y_pred1
                             y_pred2_masked = y_pred2
@@ -1788,6 +1843,13 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     out, y_pred_list, embedding = ae(images)#gene_data_train_Tensor.T)#partial batch
                                     if toValidate:
                                         valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
+                                
+                                ##umap
+                                if "umapet" in skip_connection_mode and (epoch+1)%umap_draw_step ==0:
+                                    print("embedding.shape")
+                                    print(embedding.shape)
+                                    draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="2ndstage-%d-th-dataset-%s-train-epo-"%(dataset_id,datasetName)+str(epoch),training_setting_info=date)
+                                ##
                                 if toMask:
                                     mask = y_train_T_tensor.ne(0.5)
                                     y_masked = y_train_T_tensor * mask
@@ -1869,9 +1931,37 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     ae,loss_list,global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, images.T, toMask,
                                          y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False,global_iter_num=global_iter_num,log_stage_name="whole",code=code,
                                                          toValidate=toValidate,gene_data_valid_Tensor=gene_data_valid_Tensor,valid_label=valid_label,multi_task_training_policy=multi_task_training_policy,
-                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode)#images originally:,gene_data_train_Tensor
+                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode,umap_draw_step=umap_draw_step,num_of_selected_residue=num_of_selected_residue,y_train=y_train)#images originally:,gene_data_train_Tensor
 
 
+                    ###evaluate the mask#####
+                    if mask_option is not None:
+                        (pathway_learned_percentile_list, 
+                         pathway_average_learned_percentile, 
+                         pathway_all_weights, pathway_ones_distribution, 
+                         pathway_zeros_distribution, pathway_masked_distribution) = my_gene_to_residue_info.evaluate_weight(ae.decoder1[0].weight.T, 0.05, part_option="path", data_name=date)
+
+                        print("pathway_learned_percentile_list:", pathway_learned_percentile_list)
+                        print("pathway_average_learned_percentile:", pathway_average_learned_percentile)
+                        print("pathway_all_weights:", pathway_all_weights)
+                        print("pathway_ones_distribution:", pathway_ones_distribution)
+                        print("pathway_zeros_distribution:", pathway_zeros_distribution)
+                        print("pathway_masked_distribution:", pathway_masked_distribution)
+
+                        (site_learned_percentile_list, 
+                         site_average_learned_percentile,
+                           site_all_weights, site_ones_distribution, 
+                           site_zeros_distribution, site_masked_distribution) = my_gene_to_residue_info.evaluate_weight(ae.decoder2[0].weight.T, 0.05, part_option="site", data_name=date)
+
+                        print("site_learned_percentile_list:", site_learned_percentile_list)
+                        print("site_average_learned_percentile:", site_average_learned_percentile)
+                        print("site_all_weights:", site_all_weights)
+                        print("site_ones_distribution:", site_ones_distribution)
+                        print("site_zeros_distribution:", site_zeros_distribution)
+                        print("site_masked_distribution:", site_masked_distribution)
+
+
+                        
                 '''
                 myMeiNN = MeiNN_pytorch(config, path, date, code, gene_data_train.T, y_train.T, platform, model_type, data_type,
                                 HIDDEN_DIMENSION, toTrainMeiNN, AE_epoch_from_main=AE_epoch_from_main,

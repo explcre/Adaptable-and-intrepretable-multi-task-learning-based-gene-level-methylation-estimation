@@ -47,6 +47,7 @@ import h5py
 from sklearn.metrics import calinski_harabasz_score
 from keras import constraints
 import matplotlib.pyplot as plt
+import textwrap
 
 def _sampling_function(args):
     """
@@ -171,11 +172,15 @@ class gene_to_residue_or_pathway_info:
                 print(masked_matrix)
             masked_matrix=masked_matrix.values.tolist()
         return masked_matrix, masked_positions
+    
+    def wrap_title(title, width=50):
+        return "\n".join(textwrap.wrap(title, width=width))
 
-    def evaluate_accuracy_predict_random_mask_matrix_ones(self,pred_matrix, true_matrix, masked_matrix, masked_position_list, threshold,data_name):
+    
+    def evaluate_accuracy_predict_random_mask_matrix_ones(self, pred_matrix, true_matrix, masked_matrix, masked_position_list, threshold, data_name):
         """
         Evaluate accuracy and other statistics of `pred_matrix` compared to `true_matrix`.
-        
+
         Args:
         pred_matrix (pd.DataFrame): The predicted matrix (Pandas DataFrame)
         true_matrix (pd.DataFrame): The true matrix (Pandas DataFrame)
@@ -198,14 +203,15 @@ class gene_to_residue_or_pathway_info:
             print("masked matrixis list , convert to dataframe first")
             masked_matrix=pd.DataFrame(masked_matrix)
         pred_matrix=pd.DataFrame(pred_matrix.cpu().detach().numpy())
-        learned_percentile_list = []
-        for position in masked_position_list:
-            row, col = position
-            if pred_matrix.iat[row, col] >= threshold:
-                learned_percentile_list.append(1)
-            else:
-                learned_percentile_list.append(0)
 
+        zero_positions = np.argwhere(true_matrix.to_numpy() == 0)
+        masked_positions_values = np.array([pred_matrix.iat[row, col] for row, col in masked_position_list])
+        zero_positions_values = np.array([pred_matrix.iat[row, col] for row, col in zero_positions])
+
+        sorted_zero_positions_values = np.sort(zero_positions_values)
+        learned_percentile_list = [(np.searchsorted(sorted_zero_positions_values, value) + 1) / len(sorted_zero_positions_values) * 100 for value in masked_positions_values]
+         # Sort the learned_percentile_list
+        learned_percentile_list.sort()#added
         average_learned_percentile = np.mean(learned_percentile_list)
 
         all_weights = pred_matrix.values.flatten()
@@ -215,45 +221,77 @@ class gene_to_residue_or_pathway_info:
         ones_distribution = np.array([pred_matrix.iat[row, col] for row, col in one_positions])
         zeros_distribution = np.array([pred_matrix.iat[row, col] for row, col in zero_positions])
         masked_distribution = np.array([pred_matrix.iat[row, col] for row, col in masked_position_list])
+        # Non-zero distribution
+        non_one_positions = np.argwhere(true_matrix.to_numpy() != 1)
+        non_one_distribution = np.array([pred_matrix.iat[row, col] for row, col in non_one_positions])
+
         
+        
+        # Calculate the number of bins
+        matrix_shape = pred_matrix.shape
+        total_elements = matrix_shape[0] * matrix_shape[1]
+        num_bins = int(np.sqrt(total_elements))
         funciton_name="eval_mask"
         # Save plots
         plt.clf() # clear figure
         plt.cla() # clear axis
         plt.close() # close window
 
-        plt.hist(all_weights, bins=30)
+        plt.hist(all_weights, bins=num_bins)
         plt.xlabel('Weight')
         plt.ylabel('Frequency')
-        plt.title('All Weights Distribution')
+        plt.title(self.wrap_title('All Weights Distribution ({data_name})'))
         plt.savefig(f'{funciton_name}_{data_name}_all_weights_distribution.png')
         plt.clf()
 
-        plt.hist(ones_distribution, bins=30)
+        plt.hist(ones_distribution, bins=num_bins)
         plt.xlabel('Weight')
         plt.ylabel('Frequency')
-        plt.title('Ones Distribution')
+        plt.title(self.wrap_title('Ones Distribution ({data_name})'))
         plt.savefig(f'{funciton_name}_{data_name}_ones_distribution.png')
         plt.clf()
 
-        plt.hist(zeros_distribution, bins=30)
+        plt.hist(zeros_distribution, bins=num_bins)
         plt.xlabel('Weight')
         plt.ylabel('Frequency')
-        plt.title('Zeros Distribution')
+        plt.title(self.wrap_title('Zeros Distribution ({data_name})'))
         plt.savefig(f'{funciton_name}_{data_name}_zeros_distribution.png')
         plt.clf()
 
-        plt.hist(masked_distribution, bins=30)
+        plt.hist(masked_distribution, bins=num_bins)
         plt.xlabel('Weight')
         plt.ylabel('Frequency')
-        plt.title('Masked Distribution')
+        plt.title(self.wrap_title('Masked Distribution ({data_name})'))
         plt.savefig(f'{funciton_name}_{data_name}_masked_distribution.png')
         plt.clf()
-
+        '''
         plt.bar(range(len(learned_percentile_list)), learned_percentile_list)
         plt.xlabel('Position Index')
         plt.ylabel('Learned Percentile')
         plt.title('Learned Percentile List')
+        plt.savefig(f'{funciton_name}_{data_name}_learned_percentile_list.png')
+        plt.clf()'''
+        
+        plt.hist(non_one_distribution, bins=num_bins)
+        plt.xlabel('Weight')
+        plt.ylabel('Frequency')
+        plt.title(self.wrap_title(f'Non-One Weights Distribution ({data_name})'))
+        plt.savefig(f'{funciton_name}_{data_name}_non_one_distribution.png')
+        plt.clf()
+
+        plt.hist(masked_distribution, bins=num_bins, alpha=0.5, label='Masked Distribution', color='blue')
+        plt.hist(non_one_distribution, bins=num_bins, alpha=0.5, label='Non-One Distribution', color='red')
+        plt.xlabel('Weight')
+        plt.ylabel('Frequency')
+        plt.legend(loc='upper right')
+        plt.title(self.wrap_title(f'Masked and Non-One Weights Distribution ({data_name})'))
+        plt.savefig(f'{funciton_name}_{data_name}_masked_and_non_one_distribution.png')
+        plt.clf()
+
+        plt.bar(range(len(learned_percentile_list)), learned_percentile_list)
+        plt.xlabel('Position Index (Sorted)')
+        plt.ylabel('Learned Percentile')
+        plt.title(self.wrap_title(f'Learned Percentile List (Avg: {average_learned_percentile:.2f}%) ({data_name})'))
         plt.savefig(f'{funciton_name}_{data_name}_learned_percentile_list.png')
         plt.clf()
 

@@ -77,6 +77,9 @@ class gene_to_residue_or_pathway_info:
         self.gene_pathway_reversed = gene_pathway_reversed
         #self.gene_pathway_tensor=gene_pathway_tensor
 
+        self.id_to_gene_map = {v: k for k, v in self.gene_to_id_map.items()}#added
+        self.id_to_residue_map = {v: k for k, v in self.residue_to_id_map.items()}#addeds
+
     def soften(self,to_value,part_option="all"):#part_option: which part? site-gene or gene-pathway or both
         if "site" in part_option or "all" in part_option:
             self.gene_to_residue_map_hard=self.gene_to_residue_map
@@ -97,6 +100,110 @@ class gene_to_residue_or_pathway_info:
         self.gene_pathway=self.gene_pathway_masked
         self.gene_to_residue_map_masked,self.gene_to_residue_map_masked_position_list=self.random_mask_matrix_ones_to_val(self.gene_to_residue_map, to_value, percentage, count, option)
         self.gene_to_residue_map=self.gene_to_residue_map_masked
+
+
+    def sort_pred_matrix(self, pred_matrix, part_option):
+        sorted_pred_list = []
+        sorted_weight_list = []
+        combined_list = []
+
+        if part_option == "path":
+            pred_matrix_df = pd.DataFrame(pred_matrix.cpu().detach().numpy(), index=self.gene_pathway.index, columns=self.gene_pathway.columns)
+            sorted_indices = np.argsort(pred_matrix_df.values, axis=None)
+            sorted_rows, sorted_cols = np.unravel_index(sorted_indices, pred_matrix_df.shape)
+            sorted_weight_list = pred_matrix_df.values.ravel()[sorted_indices]
+
+            for i, j in zip(sorted_rows, sorted_cols):
+                gene_name = pred_matrix_df.index[i]
+                pathway_name = pred_matrix_df.columns[j]
+                weight_value = sorted_weight_list[len(sorted_pred_list)]
+                sorted_pred_list.append((gene_name, pathway_name))
+                combined_list.append((gene_name, pathway_name, weight_value))
+
+        elif part_option == "site":
+            sorted_indices = np.argsort(pred_matrix.cpu().detach().numpy(), axis=None)
+            sorted_rows, sorted_cols = np.unravel_index(sorted_indices, pred_matrix.shape)
+            sorted_weight_list = pred_matrix.cpu().detach().numpy().ravel()[sorted_indices]
+
+            for i, j in zip(sorted_rows, sorted_cols):
+                gene_id, residue_id = i, j
+                gene_name = self.id_to_gene_map[gene_id]
+                residue_name = self.id_to_residue_map[residue_id]
+                weight_value = sorted_weight_list[len(sorted_pred_list)]
+                sorted_pred_list.append((gene_name, residue_name))
+                combined_list.append((gene_name, residue_name, weight_value))
+
+        return sorted_pred_list, sorted_weight_list, combined_list
+
+
+
+    def evaluate_weight_site_pathway(self,ae,message):
+        
+        (pathway_learned_percentile_list, 
+            pathway_average_learned_percentile, 
+            pathway_all_weights, pathway_ones_distribution, 
+            pathway_zeros_distribution, pathway_masked_distribution) = self.evaluate_weight(ae.decoder1[0].weight.T, 0.05, part_option="path", data_name=message)#date+"final"
+        if "final" in message:
+            print("pathway_learned_percentile_list:", pathway_learned_percentile_list)
+            print("pathway_average_learned_percentile:", pathway_average_learned_percentile)
+            print("pathway_all_weights:", pathway_all_weights)
+            print("pathway_ones_distribution:", pathway_ones_distribution)
+            print("pathway_zeros_distribution:", pathway_zeros_distribution)
+            print("pathway_masked_distribution:", pathway_masked_distribution)
+
+        (site_learned_percentile_list, 
+            site_average_learned_percentile,
+            site_all_weights, site_ones_distribution, 
+            site_zeros_distribution, site_masked_distribution) = self.evaluate_weight(ae.decoder2[0].weight.T, 0.05, part_option="site", data_name=message)#date+"final"
+        if "final" in message:
+            print("site_learned_percentile_list:", site_learned_percentile_list)
+            print("site_average_learned_percentile:", site_average_learned_percentile)
+            print("site_all_weights:", site_all_weights)
+            print("site_ones_distribution:", site_ones_distribution)
+            print("site_zeros_distribution:", site_zeros_distribution)
+            print("site_masked_distribution:", site_masked_distribution)
+
+        if "final" in message:
+            sorted_gene_pathway_pairs, sorted_gene_pathway_weight_list, gene_pathway_combined_list = self.sort_pred_matrix(ae.decoder1[0].weight.T, part_option="path")
+            self.sorted_gene_pathway_pair_list = sorted_gene_pathway_pairs
+            print("Sorted gene-pathway pairs:", sorted_gene_pathway_pairs)
+
+            sorted_gene_residue_pairs, sorted_gene_residue_weight_list, gene_residue_combined_list = self.sort_pred_matrix(ae.decoder2[0].weight.T, part_option="site")
+            self.sorted_gene_residue_pair_list = sorted_gene_residue_pairs
+            print("Sorted gene-residue pairs:", sorted_gene_residue_pairs)
+
+            # Save sorted_gene_pathway_pair_list to CSV
+            sorted_gene_pathway_df = pd.DataFrame(sorted_gene_pathway_pairs, columns=['Pathway', 'Gene'])
+            sorted_gene_pathway_df.to_csv(f'sorted_gene_pathway_pairs_{message}.csv', index=False)
+            print(f"Saved sorted_gene_pathway_pairs_{message}.csv")
+
+            # Save sorted_gene_pathway_weight_list to CSV
+            sorted_gene_pathway_weight_df = pd.DataFrame(sorted_gene_pathway_weight_list, columns=['Weight'])
+            sorted_gene_pathway_weight_df.to_csv(f'sorted_gene_pathway_weight_list_{message}.csv', index=False)
+            print(f"Saved sorted_gene_pathway_weight_list_{message}.csv")
+
+            # Save gene_pathway_combined_list to CSV
+            gene_pathway_combined_df = pd.DataFrame(gene_pathway_combined_list, columns=['Pathway', 'Gene', 'Weight'])
+            gene_pathway_combined_df.to_csv(f'gene_pathway_combined_list_{message}.csv', index=False)
+            print(f"Saved gene_pathway_combined_list_{message}.csv")
+
+            # Save sorted_gene_residue_pair_list to CSV
+            sorted_gene_residue_df = pd.DataFrame(sorted_gene_residue_pairs, columns=['Residue', 'Gene'])
+            sorted_gene_residue_df.to_csv(f'sorted_gene_residue_pairs_{message}.csv', index=False)
+            print(f"Saved sorted_gene_residue_pairs_{message}.csv")
+
+            # Save sorted_gene_residue_weight_list to CSV
+            sorted_gene_residue_weight_df = pd.DataFrame(sorted_gene_residue_weight_list, columns=['Weight'])
+            sorted_gene_residue_weight_df.to_csv(f'sorted_gene_residue_weight_list_{message}.csv', index=False)
+            print(f"Saved sorted_gene_residue_weight_list_{message}.csv")
+
+            # Save gene_residue_combined_list to CSV
+            gene_residue_combined_df = pd.DataFrame(gene_residue_combined_list, columns=['Residue', 'Gene', 'Weight'])
+            gene_residue_combined_df.to_csv(f'gene_residue_combined_list_{message}.csv', index=False)
+            print(f"Saved gene_residue_combined_list_{message}.csv")
+
+
+        
 
     def evaluate_weight(self, pred_matrix,threshold,part_option="path",data_name=""):
         if part_option=="path":
@@ -173,7 +280,7 @@ class gene_to_residue_or_pathway_info:
             masked_matrix=masked_matrix.values.tolist()
         return masked_matrix, masked_positions
     
-    def wrap_title(title, width=50):
+    def wrap_title(self,title, width=50):
         return "\n".join(textwrap.wrap(title, width=width))
 
     

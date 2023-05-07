@@ -99,7 +99,7 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
 
 
 #############################################
-num_of_selected_residue_loop_set = [2000]#,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
+num_of_selected_residue_loop_set = [250,300]#,200,2000]#,200,2000]#1000,2000]#20,30,40,50,100,200,400,500,1000,2000]#,4000]
 # num_of_selected_residue = 25
 skip_connection_mode = "VAE&unet&hdmsk-2enc$20$.50"#"unet"
 # "unet" : unet shape skip connection of autoencoder
@@ -117,6 +117,7 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc$20$.50"#"unet"
 # "umapo"means only visualize input
 # "umape" means visualize embedding
 # "umapet+100+" means visualize embedding throughout the training, the number inside + is the number of epoch when draw umap
+# "#" means constractive learning loss
 
 # "@c@" mask option is count,"@p@"mask option is probability
 # "$20$" means mask 20percent/count(based on mask option) of the network site-gene-pathway connection
@@ -158,7 +159,7 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
     for skip_connection_mode in ["VAE&hdmsk-2enc&batchnorm@p@$20$.50.umapet+100+","VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
-        for multi_task_training_policy in ["no~re-val"]:#,"no~pwre-val"]:#,"no~ran","ROnP~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
+        for multi_task_training_policy in ["no~re-val","no~re-ss"]:#,"no~pwre-val"]:#,"no~ran","ROnP~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
@@ -214,8 +215,8 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             datasetNameList = [ 'IBD', 'MS', 'Psoriasis', 'RA',
                                'SLE','diabetes1']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 800#200#00#00 # *len(datasetNameList)
-            NN_epoch = 800#200#00#00  # *len(datasetNameList)
+            AE_epoch = 800#800#200#00#00 # *len(datasetNameList)
+            NN_epoch = 800#800#200#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -232,7 +233,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-4-27f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-5-6f0%sAep%d-Nep%d-Site%sPath%s-res%d-lMod-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch, NN_epoch, toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)

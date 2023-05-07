@@ -69,17 +69,19 @@ import random
 import re
 import umap
 import matplotlib.pyplot as plt
+from losses import SupConLoss
 
 logger = SummaryWriter(log_dir="tensorboard_log/")
 
 warnings.filterwarnings("ignore")
 CLASSIFIER_FACTOR=10000
+CONTRASTIVE_FACTOR=50000
 REGULARIZATION_FACTOR=0.0001
 TO_PIN_MEMORY=False #True
 REG_SIGN="^"
 MULTI_TASK_SIGN="~"
 SINGLE_TASK_UPPER_BOUND_WEIGHT=0.1
-
+evaluate_weight_site_pathway_step=20
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def extract_value_between_signs(input_string, sign="$"):
@@ -200,7 +202,7 @@ def draw_umap(gene_data_train,y_train,num_of_selected_residue,stage_info="origin
     plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
 
     # Display the plot in the notebook (optional)
-    plt.show()
+    #plt.show()
     if "original" in stage_info:
         return kmeans,kmeans_fit_predict
     else:
@@ -461,12 +463,14 @@ def evaluate_accuracy_predict_random_mask_matrix_ones(pred_matrix, true_matrix, 
    
 
 
-def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,log_info,validation_info,single_task_accu_upper_bound_list=[0.93,0.73,0.80,0.94,0.79,0.98],sample_size_list=[53,88,79,49,160,118],multi_task_training_policy="~uniform"):
+def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,log_info,validation_info,single_task_accu_upper_bound_list=[0.93,0.73,0.80,0.94,0.79,0.98],sample_size_list=[53,88,79,49,160,118],multi_task_training_policy="~uniform",skip_connection_mode=""):
     y_pred_masked_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
     loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
     pred_loss_total_splited_sum = 0
     loss_single_classifier = 0
     loss_sum=0
+    if "#" in skip_connection_mode:
+        contrastive_criterion=SupConLoss()
     for i in range(len(datasetNameList)):
         y_pred_masked_list.append(y_pred_list[i].to(device).T * (mask_splited[i].to(device).squeeze()).squeeze())
         current_loss=criterion(y_pred_masked_list[i].T.squeeze(), y_masked_splited[i].to(device).squeeze())
@@ -516,6 +520,8 @@ def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,
             assign_weight_value_list[i]=torch.norm(torch.autograd.grad(loss_list[i], model.encoder4.parameters() , retain_graph=True, create_graph=True)[0])
     elif assign_weight_policy=="DRO": #TODO:DRO-like, higher loss, higher weight
         assign_weight_value_list=[loss_list[i]/loss_sum for i in range(len(datasetNameList))]
+    elif assign_weight_policy=="L2":
+        assign_weight_value_list=loss_list[i]
     else :#uniform
         assign_weight_value_list=[1.0 for i in range(len(datasetNameList))]
     #####################################################
@@ -533,7 +539,7 @@ def assign_multi_task_weight(model,datasetNameList,y_pred_list,y_masked_splited,
 
 def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_train_Tensor,toMask,y_train_T_tensor,criterion,
                          path,date,pth_name,toDebug,global_iter_num,log_stage_name,code,toValidate,gene_data_valid_Tensor,valid_label,
-                         multi_task_training_policy,learning_rate_list,skip_connection_mode,umap_draw_step,num_of_selected_residue,y_train):
+                         multi_task_training_policy,learning_rate_list,skip_connection_mode,umap_draw_step,num_of_selected_residue,y_train,mask_option,my_gene_to_residue_info):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     loss_list = []
     for epoch in range(num_epochs):
@@ -552,6 +558,8 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 print(embedding.shape)
                 draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="3ndstage-train-epo-"+str(epoch),training_setting_info=date)
             ##
+            if mask_option is not None and (epoch+1)%evaluate_weight_site_pathway_step ==0:
+                my_gene_to_residue_info.evaluate_weight_site_pathway(ae,date+"3rd-epo"+str(epoch))
             #to GPU
             #y_pred_list=y_pred_list.to(device)
             #valid_y_pred_list=valid_y_pred_list.to(device)
@@ -595,10 +603,14 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 if 'split_accuracy_list' not in locals().keys():
                     split_accuracy_list=[0.0 for i in range(len(datasetNameList))]             
                 y_pred_masked_list,loss_list,pred_loss_total_splited_sum=assign_multi_task_weight(ae,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,(date+code+" "+log_stage_name),[accuracy, split_accuracy_list],
-                                         multi_task_training_policy=multi_task_training_policy)
+                                         multi_task_training_policy=multi_task_training_policy,skip_connection_mode=skip_connection_mode)
                 ##################################
             reg_loss = return_reg_loss(ae,skip_connection_mode)
             loss_single_classifier = pred_loss_total_splited_sum * 100000 + reg_loss * 0.0001 #TODO:add autoencoder reconstruction loss
+            
+            if "#" in skip_connection_mode:
+                contrastive_criterion=SupConLoss()
+                loss_single_classifier+= contrastive_criterion(embedding)*CONTRASTIVE_FACTOR
             if "VAE" in skip_connection_mode:
                 loss_single_classifier +=ae.kl_divergence
             print(pth_name+" loss: %f" % loss_single_classifier.item())
@@ -674,6 +686,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                     loss_list = []  # [y_pred_list[:,0]*len(datasetNameList)]
                     pred_loss_total_splited_sum = 0
                     loss_single_classifier = 0
+
                     single_task_loss=[0]*len(datasetNameList)
                     for i in range(len(datasetNameList)):
                         optimizer.zero_grad()
@@ -745,6 +758,10 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                         loss_now = loss_now + scale[i] * loss_t
                     else:
                         loss_now = scale[i] * loss_t
+                
+                if "#" in skip_connection_mode:
+                    contrastive_criterion=SupConLoss()
+                    loss_now+= contrastive_criterion(embedding)*CONTRASTIVE_FACTOR
                 loss_now.backward(retain_graph=True)
                 optimizer.step()
 
@@ -899,6 +916,10 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                         loss_now = loss_now + scale[i] * loss_t
                     else:
                         loss_now = scale[i] * loss_t
+
+                if "#" in skip_connection_mode:
+                    contrastive_criterion=SupConLoss()
+                    loss_now+= contrastive_criterion(embedding)*CONTRASTIVE_FACTOR
                 loss_now.backward(retain_graph=True)
                 optimizer.step()
 
@@ -1619,7 +1640,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     split_accuracy_list=[0.0 for i in range(len(datasetNameList))]
                                 log_stage_name="1st stage"
                                 y_pred_masked_list,loss_list,pred_loss_total_splited_sum=assign_multi_task_weight(ae,datasetNameList,y_pred_list,y_masked_splited,mask_splited,criterion,(date+code+" "+log_stage_name),[accuracy, split_accuracy_list],
-                                         multi_task_training_policy=multi_task_training_policy)
+                                         multi_task_training_policy=multi_task_training_policy,skip_connection_mode=skip_connection_mode)
                                 '''
                                 y_pred_masked1 = y_pred1 * mask_splited[0]
                                 y_pred_masked2 = y_pred2 * mask_splited[1]
@@ -1690,6 +1711,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                 print("DEBUG:out dim=",out.shape)
                                 print("DEBUG:images dim=",images.shape)
                             loss = reg_loss * 0.0001 + pred_loss_total_splited_sum * 100000 + criterion(out, images) * 1
+                            if "#" in skip_connection_mode:
+                                contrastive_criterion=SupConLoss()
+                                loss+= contrastive_criterion(embedding)*CONTRASTIVE_FACTOR
                             if "VAE" in skip_connection_mode:
                                 loss += ae.kl_divergence
                             log_stage_name=""
@@ -1735,6 +1759,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                             data_loader) + i_data_batch + 1  # calculate it's which step start from training
                         if "*" in skip_connection_mode:
                             ae.save_site_gene_pathway_weight_visualization(info=" epoch "+str(global_iter_num))
+                        if mask_option is not None and (epoch+1)%evaluate_weight_site_pathway_step ==0:
+                            my_gene_to_residue_info.evaluate_weight_site_pathway(ae,date+"1st-epo"+str(epoch))
                         if toPrintInfo:
                             print("y_pred_list[0].shape")
                             print(y_pred_list[0].shape)
@@ -1850,6 +1876,8 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     print(embedding.shape)
                                     draw_umap(embedding.T.cpu().detach().numpy(),y_train,num_of_selected_residue,stage_info="2ndstage-%d-th-dataset-%s-train-epo-"%(dataset_id,datasetName)+str(epoch),training_setting_info=date)
                                 ##
+                                if mask_option is not None and (epoch+1)%evaluate_weight_site_pathway_step ==0:
+                                    my_gene_to_residue_info.evaluate_weight_site_pathway(ae,date+"2nd-sg-epo"+str(epoch))
                                 if toMask:
                                     mask = y_train_T_tensor.ne(0.5)
                                     y_masked = y_train_T_tensor * mask
@@ -1881,6 +1909,9 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     ###############################################
                                 reg_loss=return_reg_loss(ae,skip_connection_mode)
                                 loss_single_classifier=pred_loss_total_splited_sum*100000+reg_loss*0.0001
+                                if "#" in skip_connection_mode:
+                                    contrastive_criterion=SupConLoss()
+                                    loss_single_classifier+= contrastive_criterion(embedding)*CONTRASTIVE_FACTOR
                                 if "VAE" in skip_connection_mode:
                                     loss_single_classifier += ae.kl_divergence
                                 print(pth_name+"loss: %f" % loss_single_classifier.item())
@@ -1931,15 +1962,17 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                     ae,loss_list,global_iter_num=single_train_process(num_epochs, data_loader, datasetNameList, ae, images.T, toMask,
                                          y_train_T_tensor, criterion,path,date,pth_name="finetune",toDebug=False,global_iter_num=global_iter_num,log_stage_name="whole",code=code,
                                                          toValidate=toValidate,gene_data_valid_Tensor=gene_data_valid_Tensor,valid_label=valid_label,multi_task_training_policy=multi_task_training_policy,
-                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode,umap_draw_step=umap_draw_step,num_of_selected_residue=num_of_selected_residue,y_train=y_train)#images originally:,gene_data_train_Tensor
+                                                         learning_rate_list=learning_rate_list,skip_connection_mode=skip_connection_mode,umap_draw_step=umap_draw_step,num_of_selected_residue=num_of_selected_residue,y_train=y_train,mask_option=mask_option,my_gene_to_residue_info=my_gene_to_residue_info)#images originally:,gene_data_train_Tensor
 
 
                     ###evaluate the mask#####
                     if mask_option is not None:
+                        my_gene_to_residue_info.evaluate_weight_site_pathway(ae,date+"-final")
+                        '''
                         (pathway_learned_percentile_list, 
                          pathway_average_learned_percentile, 
                          pathway_all_weights, pathway_ones_distribution, 
-                         pathway_zeros_distribution, pathway_masked_distribution) = my_gene_to_residue_info.evaluate_weight(ae.decoder1[0].weight.T, 0.05, part_option="path", data_name=date)
+                         pathway_zeros_distribution, pathway_masked_distribution) = my_gene_to_residue_info.evaluate_weight(ae.decoder1[0].weight.T, 0.05, part_option="path", data_name=date+"final")
 
                         print("pathway_learned_percentile_list:", pathway_learned_percentile_list)
                         print("pathway_average_learned_percentile:", pathway_average_learned_percentile)
@@ -1951,14 +1984,14 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                         (site_learned_percentile_list, 
                          site_average_learned_percentile,
                            site_all_weights, site_ones_distribution, 
-                           site_zeros_distribution, site_masked_distribution) = my_gene_to_residue_info.evaluate_weight(ae.decoder2[0].weight.T, 0.05, part_option="site", data_name=date)
+                           site_zeros_distribution, site_masked_distribution) = my_gene_to_residue_info.evaluate_weight(ae.decoder2[0].weight.T, 0.05, part_option="site", data_name=date+"final")
 
                         print("site_learned_percentile_list:", site_learned_percentile_list)
                         print("site_average_learned_percentile:", site_average_learned_percentile)
                         print("site_all_weights:", site_all_weights)
                         print("site_ones_distribution:", site_ones_distribution)
                         print("site_zeros_distribution:", site_zeros_distribution)
-                        print("site_masked_distribution:", site_masked_distribution)
+                        print("site_masked_distribution:", site_masked_distribution)'''
 
 
                         

@@ -568,23 +568,36 @@ class MeiNN(nn.Module):
         
         self.gene_site_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_to_residue_map, dtype=torch.float).T
         self.pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)
+        self.dropout_rate=0.5
         if "hdmsk-4enc-self-fc" in self.skip_connection_mode:
             case_type="hdmsk-4enc-self-fc"
             print("detected"+case_type+" in encoder")
-            
-            self.encoder1 = nn.Sequential(
-                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=self.gene_site_tensor.T),
-                nn.ReLU(),  # nn.Sigmoid()
+            if "dpot" in skip_connection_mode:
+                self.encoder1 = nn.Sequential(
+                    nn.Linear(residue_layer_dim, gene_layer_dim),
+                    nn.Dropout(self.dropout_rate),
+                    nn.ReLU(),  # nn.Sigmoid()
                 )
+            else:
+                self.encoder1 = nn.Sequential(
+                    MaskedLinear(residue_layer_dim, gene_layer_dim,mask=self.gene_site_tensor.T),
+                    nn.ReLU(),  # nn.Sigmoid()
+                    )
             self.encoder2 = nn.Sequential(
                 nn.Linear(gene_layer_dim, gene_layer_dim),
                 nn.ReLU(),  # nn.Sigmoid()
                 )
-            
-            self.encoder3 = nn.Sequential(
-                MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
-                nn.Sigmoid()
+            if "dpot" in skip_connection_mode:
+                self.encoder3 = nn.Sequential(
+                    nn.Linear(gene_layer_dim, latent_dim),
+                    nn.Dropout(self.dropout_rate),
+                    nn.Sigmoid()
                 )
+            else:
+                self.encoder3 = nn.Sequential(
+                    MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
+                    nn.Sigmoid()
+                    )
             self.encoder4 = nn.Sequential(
                 nn.Linear(latent_dim, latent_dim),
                 nn.ReLU(),  # nn.Sigmoid()
@@ -596,18 +609,33 @@ class MeiNN(nn.Module):
                     )
             print(case_type+" maskedLinear in encoder defined")
         elif "hdmsk-2enc" in self.skip_connection_mode:
+            
             case_type="hdmsk-2enc"
             print("detected"+case_type+" in encoder")
-            
-            self.encoder1 = nn.Sequential(
-                MaskedLinear(residue_layer_dim, gene_layer_dim,mask=self.gene_site_tensor.T),
-                nn.ReLU(),  # nn.Sigmoid()
+            if "dpot" in skip_connection_mode:
+                self.encoder1 = nn.Sequential(
+                    nn.Linear(residue_layer_dim, gene_layer_dim),
+                    nn.Dropout(self.dropout_rate),
+                    nn.ReLU(),  # nn.Sigmoid()
                 )
+            else:
+                self.encoder1 = nn.Sequential(
+                    MaskedLinear(residue_layer_dim, gene_layer_dim,mask=self.gene_site_tensor.T),
+                    nn.ReLU(),  # nn.Sigmoid()
+                    )
             #only encoder 1 and 4
-            self.encoder4 = nn.Sequential(
-                MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
-                nn.Sigmoid()
+            if "dpot" in skip_connection_mode:
+                self.encoder4 = nn.Sequential(
+                    nn.Linear(gene_layer_dim, latent_dim),
+                    nn.Dropout(self.dropout_rate),
+                    nn.Sigmoid()
                 )
+            else:
+                self.encoder4 = nn.Sequential(
+                    MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
+                    nn.Sigmoid()
+                    )
+            
             if "VAE" in self.skip_connection_mode:
                     self.encoder4_var = nn.Sequential(
                         nn.Linear(gene_layer_dim, latent_dim),

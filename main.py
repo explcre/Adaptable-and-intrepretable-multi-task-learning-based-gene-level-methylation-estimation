@@ -158,7 +158,7 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-2enc&batchnorm@p@$20$.50.umapet+100+dpot"]:#,"VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+    for skip_connection_mode in ["VAE&hdmsk-2enc&batchnorm@p@$20$.50.umapet+100+dpot","VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpot"]:#,"VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
         for multi_task_training_policy in ["no~re-val"]:#,"no~re-ss"]:#,"no~pwre-val"]:#,"no~ran","ROnP~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False

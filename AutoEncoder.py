@@ -643,24 +643,24 @@ class MeiNN(nn.Module):
                 self.encoder3 = nn.Sequential(
                     MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
                     #nn.Dropout(self.dropout_rate_gene_pathway),
-                    nn.Sigmoid()
+                    nn.ReLU()
                     )
             elif "dpot" in skip_connection_mode:
                 self.encoder3 = nn.Sequential(
                     nn.Linear(gene_layer_dim, latent_dim),
                     nn.Dropout(self.dropout_rate_gene_pathway),
-                    nn.Sigmoid()
+                    nn.ReLU()
                 )
             else:
                 self.encoder3 = nn.Sequential(
                     MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
-                    nn.Sigmoid()
+                    nn.ReLU()
                     )
             ###   
             if  "dpotf" in skip_connection_mode or "dpotn" in skip_connection_mode:
                 self.encoder4 = nn.Sequential(
                     MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
-                    nn.Sigmoid()
+                    nn.ReLU()
                     )
             elif "dpotb" in skip_connection_mode:  
                 self.encoder4 = nn.Sequential(
@@ -704,18 +704,18 @@ class MeiNN(nn.Module):
                 self.encoder4 = nn.Sequential(
                     MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
                     nn.Dropout(self.dropout_rate_gene_pathway),
-                    nn.Sigmoid()
+                    nn.ReLU()
                     )
             elif "dpot" in skip_connection_mode:
                 self.encoder4 = nn.Sequential(
                     nn.Linear(gene_layer_dim, latent_dim),
                     nn.Dropout(self.dropout_rate_gene_pathway),
-                    nn.Sigmoid()
+                    nn.ReLU()
                 )
             else:
                 self.encoder4 = nn.Sequential(
                     MaskedLinear(gene_layer_dim, latent_dim,mask=self.pathway_gene_tensor.T),
-                    nn.Sigmoid()
+                    nn.ReLU()
                     )
             
             if "VAE" in self.skip_connection_mode:
@@ -783,7 +783,7 @@ class MeiNN(nn.Module):
         self.kl_divergence = 0
         
         
-        
+        ######decoder#################
         if "hdmsk" in self.skip_connection_mode:
             print("detected hardmask in decoder")
             #pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)

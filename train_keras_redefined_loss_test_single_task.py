@@ -965,19 +965,27 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
 
 
 # Define the single_task_training_one_epoch function
-def single_task_training_one_epoch(ae, optimizer, criterion, data_loader, task_idx, num_epochs, dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,AE_loss_list,gene,count,toPrintInfo=False, toMask=True):
+def single_task_training_one_epoch(stageName,datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs, dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor,toPrintInfo=False, toMask=True):
     for epoch in range(num_epochs):
         print("Now epoch:%d"%epoch)
         t0 = time()
         for i_data_batch, [images,y_train_T_tensor] in enumerate(data_loader):  # for i, (images, _) in enumerate(data_loader):
             images = AE.to_var(images.view(images.size(0), -1)).float()
-
+            if toPrintInfo:
+                print("DEBUG INFO:before the input of model MeiNN")
+                print(images)
+            #y_pred_masked = y_pred
+            y_masked = y_train_T_tensor
             out, y_pred_list, embedding = ae(images)
-
+            if toValidate:
+                valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
             y_masked = y_train_T_tensor[:, task_idx:task_idx+1]
 
             if toMask:
                 mask = y_masked.ne(0.5)
+                # Move mask and y_masked to the same device as y_pred_list[task_idx]
+                mask = mask.to(y_pred_list[task_idx].device)
+                y_masked = y_masked.to(y_pred_list[task_idx].device)
                 y_masked = y_masked * mask
 
             y_pred_masked = y_pred_list[task_idx] * mask
@@ -994,12 +1002,12 @@ def single_task_training_one_epoch(ae, optimizer, criterion, data_loader, task_i
                   % (reg_loss, criterion(out, images), criterion(y_pred_masked, y_masked)))
 
             print("loss: %f" % loss.item())
-
-            if (i + 1) % 10 == 0:
+            AE_loss_list.append(loss.item())
+            if (epoch + 1) % 10 == 0:
                 print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
-                      % (epoch + 1, num_epochs, i + 1, len(dataset) // batch_size, loss.item(), time() - t0))
+                      % (epoch + 1, num_epochs, epoch + 1, len(dataset) // batch_size, loss.item(), time() - t0))
                 
-        if (epoch + 1) % 1 == 0 and batch_size_ratio==1.0:#batch_size_ratio added
+        if (epoch + 1) % 10 == 0 and batch_size_ratio==1.0:#batch_size_ratio added
             # save the reconstructed images
             fixed_x = fixed_x.float()
             reconst_images, y_pred, embedding = ae(fixed_x)  # prediction
@@ -1008,7 +1016,7 @@ def single_task_training_one_epoch(ae, optimizer, criterion, data_loader, task_i
             # mydir = 'E:/JI/4 SENIOR/2021 fall/VE490/ReGear-gyl/ReGear/test_sample/data/'
             mkpath = ".\\result\\%s" % date
             mkdir(mkpath)
-            myfile = 'rcnst_img_bt%d_ep%d.png' % (i + 1, (epoch + 1))
+            myfile = 'rcnst_img_bt%d_ep%d.png' % (epoch + 1, (epoch + 1))
             reconst_images_path = os.path.join(mkpath, myfile)
             torchvision.utils.save_image(reconst_images.data.cpu(), reconst_images_path)
         ##################
@@ -1021,7 +1029,7 @@ def single_task_training_one_epoch(ae, optimizer, criterion, data_loader, task_i
                 "model_state_dict": ae.state_dict(),  # 保存模型参数×××××这里埋个坑××××
                 "optimizer": optimizer.state_dict()}, path + date + '.tar')
 
-    torch.save(ae, path + date + '.pth')  # save the whole autoencoder network
+    torch.save(ae, path + date + f"stl-{datasetNameList[task_idx]}-{stageName}.pth")  # save the whole autoencoder network
     AE_loss_list_df = pd.DataFrame(AE_loss_list)
     AE_loss_list_df.to_csv(path + date + "_AE_loss_list).csv", sep='\t')
     if count == 1:
@@ -1031,7 +1039,7 @@ def single_task_training_one_epoch(ae, optimizer, criterion, data_loader, task_i
         with open(path + date + '_train_model_pytorch.pickle', 'ab') as f:
             pickle.dump((gene, ae), f)  # pickle.dump((gene, model), f)
 
-
+    return ae,AE_loss_list
 
 # Only train regression model, save parameters to pickle file
 def run(path, date, code, X_train, y_train, platform, model_type, data_type, HIDDEN_DIMENSION, toTrainMeiNN,
@@ -1561,7 +1569,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 # Main code
                 if multiDatasetMode=="single-task":
                     for task_idx in range(6):  # assuming there are 6 tasks
-                        single_task_training_one_epoch(ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,AE_loss_list,gene,count)
+                        #pretrain
+                        ae,AE_loss_list=single_task_training_one_epoch("pre",datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor)
+                        optimizer = torch.optim.Adam(ae.parameters(), lr=learning_rate_list[1])#0.001
+                        #with lower learning rate finetune
+                        ae,AE_loss_list=single_task_training_one_epoch("ft",datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor)
                 else:
                     y_pred_list = None
                     for epoch in range(num_epochs):

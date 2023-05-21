@@ -12,8 +12,8 @@ from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_score
 from sklearn.tree import DecisionTreeClassifier
 
-from train_keras_redefined_loss import run
-from predict_keras_redefined_loss import predict
+from train_keras_redefined_loss_test_single_task import run
+from predict_keras_redefined_loss_test_single_task import predict
 import time
 import tools
 #tensorboard command:tensorboard --logdir="~/methylation-github/tensorboard_log/
@@ -121,17 +121,16 @@ skip_connection_mode = "VAE&unet&hdmsk-2enc$20$.50"#"unet"
 # "dpot" means dropout(for abalation study) ratio=0.5
 # "dpots" means dropout, ratio same as the number of mask in site-gene/gene-pathway layer.
 # "dpotb" means hardmask and dropout both
-# "dpotf" means dropout fully connected then hardmask
-# "dpotn" means fully connected then hardmask(no dropout)
 # "@c@" mask option is count,"@p@"mask option is probability
 # "$20$" means mask 20percent/count(based on mask option) of the network site-gene-pathway connection
 # ".50.", or ".xx." means , it will make the connection not defined by site-gene-pathway, mask 0.50(or other values) but not originally hard 0
 # "no" : no skip connection of autoencoder
 
-multiDatasetMode = "pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'
+multiDatasetMode = "single-task"#"pretrain-finetune"  # 'multi-task's#"pretrain-finetune" #'multi-task'
 # 'softmax': multi-class, with last layer of MeiNN is softmax
 # 'multi-task': multi-task solution with network architecture for each task
 # 'pretrain-finetune': first pretrain a big model with multi-tasks, then finetune each single dataset classifier
+#  'single-task' only test single task for abalation study
 multi_task_training_policy= "ROnP"#"ReduceLROnPlateau"#"MGDA"#"ReduceLROnPlateau"#"low_vali_accu&single_loss"
 # "low_vali_accu": will train the lowest validation accuracy
 # "single_loss" when train the single classifier, only focus on the single_classifier_loss
@@ -162,7 +161,7 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpotf","VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpotn"]:#,"VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+    for skip_connection_mode in ["VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+","VAE&hdmsk-2enc&batchnorm@p@$20$.50.umapet+100+"]:#,"VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
         for multi_task_training_policy in ["no~re-val"]:#,"no~re-ss"]:#,"no~pwre-val"]:#,"no~ran","ROnP~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
@@ -220,7 +219,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                'SLE','diabetes1']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
             AE_epoch = 800#00#800#200#00#00 # *len(datasetNameList)
-            NN_epoch = 800#00#100#800#200#00#00  # *len(datasetNameList)
+            NN_epoch = 800#100#800#200#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -237,7 +236,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-5-14f0%sAep%d-Site%sPath%s-res%d-lMd-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-5-15-f0%sAep%d-Site%sPath%s-res%d-lM-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch,  toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)#NN_epoch,
@@ -880,7 +879,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                         date + "_" + code + "_" + model_type + "_" + data_type + dataset_type + "_model.pickle", model_type,
                         data_type, model, predict_model_type, residue_name_list, datasetNameList=multi_train_data_and_label_df,
                         separatelyTrainAE_NN=separatelyTrainAE_NN,multiDatasetMode=multiDatasetMode,framework=framework)'''
-                if multiDatasetMode == "pretrain-finetune":# this mode will output values
+                if multiDatasetMode == "pretrain-finetune" or  multiDatasetMode == "single-task" :# this mode will output values
                     accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_split_accuracy_list=predict(path, date, code, test_data, test_label, platform,
                         date + "_" + code + "_" + dataset_type + "_model.pickle",
                         model_type, data_type, h_dim, toTrainMeiNN, model, predict_model_type, residue_name_list,

@@ -83,6 +83,8 @@ MULTI_TASK_SIGN="~"
 SINGLE_TASK_UPPER_BOUND_WEIGHT=0.1
 evaluate_weight_site_pathway_step=20
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 def extract_value_between_signs(input_string, sign="$"):
     if sign == ".":
@@ -965,7 +967,9 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
 
 
 # Define the single_task_training_one_epoch function
-def single_task_training_one_epoch(stageName,datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs, dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor,toPrintInfo=False, toMask=True):
+def single_task_training_one_epoch(stageName,datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs, dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor,skip_connection_mode,toPrintInfo=False, toMask=True):
+    criterionBCE = nn.BCELoss()
+    criterionMSE = nn.MSELoss()
     for epoch in range(num_epochs):
         print("Now epoch:%d"%epoch)
         t0 = time()
@@ -979,29 +983,47 @@ def single_task_training_one_epoch(stageName,datasetNameList,ae, optimizer, crit
             out, y_pred_list, embedding = ae(images)
             if toValidate:
                 valid_out, valid_y_pred_list, valid_embedding = ae(gene_data_valid_Tensor.T)  # for validation
-            y_masked = y_train_T_tensor[:, task_idx:task_idx+1]
+            y_masked = y_train_T_tensor#[:, task_idx:task_idx+1]
 
             if toMask:
                 mask = y_masked.ne(0.5)
                 # Move mask and y_masked to the same device as y_pred_list[task_idx]
-                mask = mask.to(y_pred_list[task_idx].device)
-                y_masked = y_masked.to(y_pred_list[task_idx].device)
+                mask = mask.to(y_pred_list.device)#y_pred_list[task_idx].device
+                y_masked = y_masked.to(y_pred_list.device)#y_pred_list[task_idx].device
                 y_masked = y_masked * mask
 
-            y_pred_masked = y_pred_list[task_idx] * mask
-
+            #y_pred_masked = y_pred_list[task_idx] * mask
+            y_pred_masked = y_pred_list  * mask
             reg_loss = return_reg_loss(ae)
+            if toPrintInfo:
+                print("("*100)
+                print("y_pred_masked")
+                print(y_pred_masked.shape)
+                print(y_pred_masked)
+                print("y_masked")
+                print(y_masked)
+                print(y_masked.shape)
+                print("criterionBCE(y_pred_masked, y_masked)")
+                print(criterionBCE(y_pred_masked, y_masked))
+                print("y_pred_masked[task_idx] shape: ", y_pred_masked[task_idx].shape)
+                print("y_masked[task_idx] shape: ", y_masked[task_idx].shape)
+                print("y_pred_masked[task_idx]: ", y_pred_masked[:,task_idx])
+                print("y_masked[task_idx]: ", y_masked[:,task_idx])
+                print(")"*100)
+            if "MSE" in skip_connection_mode:
+                criterion_reconstruct=nn.MSELoss()
+            else:
+                criterion_reconstruct=nn.BCELoss()
+            loss = reg_loss * 0.0001  + criterion_reconstruct(out, images) * 1 + criterionBCE(y_pred_masked[:,task_idx], y_masked[:,task_idx]) * 10000
+            print("reg_loss%f,ae loss%f,prediction loss%f"
+                  % (reg_loss, criterion_reconstruct(out, images), criterionBCE(y_pred_masked, y_masked)))
 
-            loss = reg_loss * 0.0001 + criterion(y_pred_masked, y_masked) * 10000 + criterion(out, images) * 1
-
+            print("loss: %f" % loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            print("reg_loss%f,ae loss%f,prediction loss%f"
-                  % (reg_loss, criterion(out, images), criterion(y_pred_masked, y_masked)))
-
-            print("loss: %f" % loss.item())
+            
             AE_loss_list.append(loss.item())
             if (epoch + 1) % 10 == 0:
                 print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f Time: %.2fs'
@@ -1570,10 +1592,11 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                 if multiDatasetMode=="single-task":
                     for task_idx in range(6):  # assuming there are 6 tasks
                         #pretrain
-                        ae,AE_loss_list=single_task_training_one_epoch("pre",datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor)
+                        #stageName,datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs, dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor,skip_connection_mode,toPrintInfo=False, toMask=True
+                        ae,AE_loss_list=single_task_training_one_epoch("pre",datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor,skip_connection_mode)
                         optimizer = torch.optim.Adam(ae.parameters(), lr=learning_rate_list[1])#0.001
                         #with lower learning rate finetune
-                        ae,AE_loss_list=single_task_training_one_epoch("ft",datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor)
+                        ae,AE_loss_list=single_task_training_one_epoch("ft",datasetNameList,ae, optimizer, criterion, data_loader, task_idx, num_epochs,dataset,batch_size,batch_size_ratio,gene_data_train,path,date,model_dict,model_type,AE_loss_list,gene,count,fixed_x,toValidate,gene_data_valid_Tensor,skip_connection_mode)
                 else:
                     y_pred_list = None
                     for epoch in range(num_epochs):

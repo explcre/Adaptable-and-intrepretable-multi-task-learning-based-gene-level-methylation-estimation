@@ -1,4 +1,5 @@
 # Adaptable and intrepretable Multi-task Learning based gene-level methylation estimation
+![meinn-total-workflow-compact](https://github.com/explcre/Adaptable-and-intrepretable-multi-task-learning-based-gene-level-methylation-estimation/assets/45730271/3b93a558-9d00-4791-abef-1147cfc6d95d)
 
 ## Introduction
 -	Explored adaptable and interpretable neural network to find common genotype given 480k dimension sites, hundreds of sample. 
@@ -61,3 +62,8 @@ First, we designed a refined auto-encoder architecture. Input is residual methyl
 
 For decoder, we designed an explainable neural network which prunes the node. The network restore data from pathway to gene-level methylation, then to the residual methylation again. For each step, dimensions become larger and the former layer is a collection of the latter layer. The reason why it’s explainable is that we only remained the connection between certain residuals in the gene and certain genes in the pathway according to expert knowledge. This pruning method reduces the dimension to calculate and also can be explained by gene rules. 
 Moreover, the auto-encoder can be adaptable in different datasets because the embedding can be shared between different input data sources, which can support transfer learning.
+
+## Results
+
+![results-final](https://github.com/explcre/Adaptable-and-intrepretable-multi-task-learning-based-gene-level-methylation-estimation/assets/45730271/7a97ffa9-789d-4c79-b1b7-b935f7ed020a)
+

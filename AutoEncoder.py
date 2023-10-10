@@ -783,7 +783,7 @@ class MeiNN(nn.Module):
         self.kl_divergence = 0
         
         
-        ######decoder#################
+        
         if "hdmsk" in self.skip_connection_mode:
             print("detected hardmask in decoder")
             #pathway_gene_tensor = torch.tensor(self.gene_to_residue_or_pathway_info.gene_pathway.T.values, dtype=torch.float)

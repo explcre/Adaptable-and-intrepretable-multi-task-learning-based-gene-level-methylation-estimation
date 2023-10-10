@@ -43,32 +43,171 @@ def radical_data(data):
 def cube_data(data):
     return data ** 3
 
-def draw_roc(plot_title,y_test, y_score):
-    fpr, tpr, threshold = roc_curve(y_test, y_score)  ###计算真正率和假正率
-    roc_auc = auc(fpr, tpr)  ###计算auc的值
+def draw_roc(plot_title, y_test, y_score, logger=None):
+    y_test=y_test.T
+    print("original y_test.shape=",y_test.shape)
+    print("original y_test=",y_test)
+    print("original y_score.shape=",y_score.shape)
+    print("original y_score=",y_score)
+    #y_test = y_test.T
+    # # Convert to numpy array if they are pandas DataFrames or Series
+    y_test = np.asarray(y_test)
+    y_score = np.asarray(y_score)
+    print("as array y_test.shape=",y_test.shape)
+    print("as array y_test=",y_test)
+    print("as array y_score.shape=",y_score.shape)
+    print("as array y_score=",y_score)
+    # if isinstance(y_test, pd.DataFrame):
+    #     y_test = y_test.values
+    # if isinstance(y_score, pd.DataFrame):
+    #     y_score = y_score.values
+    
+    # Get the indexes where y_test is not equal to 0.5
+    # valid_idxs = np.where(y_test != 0.5)
+    # print("valid_idxs",valid_idxs)
+    # y_test = y_test[valid_idxs]
+    # y_score = y_score[valid_idxs]
+    
+    # mask = y_test != 0.5
 
-    plt.figure()
-    lw = 2
-    plt.figure(figsize=(10, 10))
-    plt.plot(fpr, tpr, color='darkorange',
-             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)  ###假正率为横坐标，真正率为纵坐标做曲线
-    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    # # Filter y_test and y_score using the mask
+    # y_test = [y_test[mask[:, col], col] for col in range(y_test.shape[1])]
+    # y_score = [y_score[mask[:, col], col] for col in range(y_test.shape[1])]
+    # Separate and filter columns
+    y_test_columns = {}
+    y_score_columns = {}
+    for i in range(6):
+        col_name = f"col_{i+1}"
+        
+        # Filter out rows where y_test value is 0.5 for the current column
+        valid_indices = np.where(y_test[:, i] != 0.5)
+        
+        y_test_columns[col_name] = y_test[valid_indices, i].squeeze()
+        
+        y_score_columns[col_name] = y_score[valid_indices, i].squeeze()
+        print("y_score[:, i]",y_score[:, i])
+        print("y_score[valid_indices, i]",y_score[valid_indices, i])
+
+    print("^"*100)
+    #print("y_test [valid_idxs].shape=",y_test_columns.shape)
+    print("y_test [valid_idxs]=",y_test_columns)
+    #print("y_score [valid_idxs].shape=",y_score_columns.shape)
+    print("y_score [valid_idxs]=",y_score_columns)
+    
+    for col_name, y_test_col in y_test_columns.items():
+        y_score_col = y_score_columns[col_name]
+        
+        # Check if there's data to plot
+        if len(y_test_col) == 0:
+            continue
+        draw_single_roc(y_test_col, y_score_col, plot_title + f'__ROC-{i}__', logger)
+    
+    # if True:#y_test.ndim == 2:  # Check if y_test is multi-output
+    #     num_classes = y_test.shape[1]
+    #     for i in range(num_classes):
+    #         draw_single_roc(y_test[:, i], y_score[:, i], plot_title + f'ROC-{i}', logger)
+    # else:
+    #     draw_single_roc(y_test, y_score, plot_title + 'ROC', logger)
+
+
+def draw_single_roc(y_test, y_score, title, logger=None):
+    fpr, tpr, _ = roc_curve(y_test, y_score)
+    roc_auc = auc(fpr, tpr)
+    fig = plt.figure(figsize=(10, 10))
+    plt.plot(fpr, tpr, label=f'ROC curve (area = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], 'k--')
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title(plot_title+'Receiver operating characteristic example')
+    plt.title(title)
     plt.legend(loc="lower right")
-    plt.savefig(plot_title+'Receiver operating characteristic example'+".png")
-    plt.show()
-    figure=plt.imread(plot_title+'Receiver operating characteristic example'+".png")
-    #writer = SummaryWriter()
-    logger.add_figure(
-        plot_title+'Receiver operating characteristic example'+".png",
-        figure,
-        global_step=None,
-        close=False,
-        walltime=None)
+    filename = "./roc/"+title + ".png"
+    plt.savefig(filename)
+    plt.close(fig)
+    
+    if logger:
+        logger.add_figure(filename, fig, global_step=None, close=True, walltime=None)
+
+# def draw_roc(plot_title, y_test, y_score):
+#     # Convert to numpy array if they are pandas DataFrames
+#     if isinstance(y_test, pd.DataFrame):
+#         y_test = y_test.values
+#     if isinstance(y_score, pd.DataFrame):
+#         y_score = y_score.values
+#     y_test[y_test == 0.5]=pd.nan
+#     # y_test[y_test >= 0.5] = 1
+#     # y_test[y_test < 0.5] = 0
+#     y_test = y_test.T
+#     print("^"*100)
+#     print("y_test",y_test)
+#     print("y_score",y_score)
+#     print("y_test shape:", y_test.shape)
+#     print("y_score shape:", y_score.shape)
+    
+#     if y_test.ndim == 2:  # Check if y_test is multi-output
+#         num_classes = y_test.shape[1]
+#         for i in range(num_classes):
+#             fpr, tpr, _ = roc_curve(y_test[:, i], y_score[:, i])
+#             roc_auc = auc(fpr, tpr)
+#             fig = plt.figure(figsize=(10, 10))
+#             plt.plot(fpr, tpr, label=f'Class {i} ROC curve (area = {roc_auc:.2f})')
+#             plt.plot([0, 1], [0, 1], 'k--')
+#             plt.xlim([0.0, 1.0])
+#             plt.ylim([0.0, 1.05])
+#             plt.xlabel('False Positive Rate')
+#             plt.ylabel('True Positive Rate')
+#             plt.title(plot_title + f'ROC-{i}')
+#             plt.legend(loc="lower right")
+#             filename = f"{plot_title}ROC-{i}.png"
+#             plt.savefig(filename)
+#             plt.close(fig)
+            
+#             logger.add_figure(filename, fig, global_step=None, close=True, walltime=None)
+#     else:
+#         fpr, tpr, _ = roc_curve(y_test, y_score)
+#         roc_auc = auc(fpr, tpr)
+#         fig = plt.figure(figsize=(10, 10))
+#         plt.plot(fpr, tpr, label=f'ROC curve (area = {roc_auc:.2f})')
+#         plt.plot([0, 1], [0, 1], 'k--')
+#         plt.xlim([0.0, 1.0])
+#         plt.ylim([0.0, 1.05])
+#         plt.xlabel('False Positive Rate')
+#         plt.ylabel('True Positive Rate')
+#         plt.title(plot_title + 'ROC')
+#         plt.legend(loc="lower right")
+#         filename = plot_title + "ROC.png"
+#         plt.savefig(filename)
+#         plt.close(fig)
+        
+#         logger.add_figure(filename, fig, global_step=None, close=True, walltime=None)
+
+# def draw_roc(plot_title,y_test, y_score):
+#     fpr, tpr, threshold = roc_curve(y_test, y_score)  ###计算真正率和假正率
+#     roc_auc = auc(fpr, tpr)  ###计算auc的值
+
+#     plt.figure()
+#     lw = 2
+#     plt.figure(figsize=(10, 10))
+#     plt.plot(fpr, tpr, color='darkorange',
+#              lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)  ###假正率为横坐标，真正率为纵坐标做曲线
+#     plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+#     plt.xlim([0.0, 1.0])
+#     plt.ylim([0.0, 1.05])
+#     plt.xlabel('False Positive Rate')
+#     plt.ylabel('True Positive Rate')
+#     plt.title(plot_title+'Receiver operating characteristic example')
+#     plt.legend(loc="lower right")
+#     plt.savefig("./result/"+plot_title+'Receiver operating characteristic example'+".png")
+#     plt.show()
+#     figure=plt.imread("./result/"+plot_title+'Receiver operating characteristic example'+".png")
+#     #writer = SummaryWriter()
+#     logger.add_figure(
+#         "./result/"+plot_title+'Receiver operating characteristic example'+".png",
+#         figure,
+#         global_step=None,
+#         close=False,
+#         walltime=None)
 
 
 
@@ -452,15 +591,15 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
                             #for i in range(len(datasetNameList)):
                             print("prediction list is")
                             print(pred_out_list)
-                            normalized_pred_out_, num_wrong_pred_, accuracy_,split_accuracy_list_ = tools.evaluate_accuracy_list(datasetNameList,Y_test, pred_out_list)
+                            normalized_pred_out_, num_wrong_pred_, accuracy_,split_accuracy_list_,auroc_list_ = tools.evaluate_accuracy_list(datasetNameList,Y_test, pred_out_list)
                             if multiDatasetMode == 'pretrain-finetune':
                                 print("single classifier trained prediction list is")
                                 print(single_trained_pred_out_list)
-                                single_trained_normalized_pred_out, single_trained_num_wrong_pred, single_trained_accuracy,single_trained_split_accuracy_list = tools.evaluate_accuracy_list(datasetNameList,
+                                single_trained_normalized_pred_out, single_trained_num_wrong_pred, single_trained_accuracy,single_trained_split_accuracy_list,single_trained_auroc_list = tools.evaluate_accuracy_list(datasetNameList,
                                                                                                   Y_test, single_trained_pred_out_list)
                                 print("finetune prediction list is")
                                 print(finetune_pred_out_list)
-                                finetune_normalized_pred_out, finetune_num_wrong_pred, finetune_accuracy,finetune_split_accuracy_list = tools.evaluate_accuracy_list(datasetNameList,
+                                finetune_normalized_pred_out, finetune_num_wrong_pred, finetune_accuracy,finetune_split_accuracy_list,finetune_auroc_list = tools.evaluate_accuracy_list(datasetNameList,
                                     Y_test, finetune_pred_out_list)
 
 
@@ -637,7 +776,10 @@ def predict(path,date,code, X_test,Y_test, platform, pickle_file, model_type, da
     draw_roc(date + code + "single", Y_test, single_trained_pred_out_list)
     draw_roc(date + code + "whole", Y_test, finetune_pred_out_list)'''
     if multiDatasetMode=="pretrain-finetune":
-        return accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_split_accuracy_list
+        draw_roc(date + code + "1", Y_test, pred_out_list)
+        draw_roc(date + code + "single", Y_test, single_trained_pred_out_list)
+        draw_roc(date + code + "whole", Y_test, finetune_pred_out_list)
+        return accuracy_, split_accuracy_list_,auroc_list_, single_trained_accuracy, single_trained_split_accuracy_list,single_trained_auroc_list, finetune_accuracy, finetune_split_accuracy_list,finetune_auroc_list
 
 if __name__ == '__main__':
     # Parameter description：

@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import sklearn
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
 from sklearn.linear_model import LogisticRegression, LinearRegression
 import sklearn.naive_bayes as bayes
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
@@ -94,7 +95,18 @@ def crossDict(functions, train_x, train_y, cv, verbose, scr, test_x, test_y):
         valScore = cross_val_score(func, train_x, train_y, cv=cv, verbose=verbose, scoring=scr)
         func.fit(train_x, train_y)
         testScore = func.score(test_x, test_y)
-        valDict[str(func).split('(')[0]] = [valScore.mean(), valScore.std(), testScore]
+        
+        # Check if the model has the predict_proba method
+        if hasattr(func, "predict_proba"):
+            # Predict probabilities for the positive class
+            y_pred_prob = func.predict_proba(test_x)[:, 1]
+            
+            # Compute AUC score
+            auc_score = roc_auc_score(test_y, y_pred_prob)
+        else:
+            auc_score = None
+        
+        valDict[str(func).split('(')[0]] = [valScore.mean(), valScore.std(), testScore, auc_score]
     return valDict
 
 
@@ -162,11 +174,13 @@ learning_rate_list=[1e-3,1e-4,1e-4]#[1e-3,1e-4,1e-4]
 
 setup_seed(3407)
 for num_of_selected_residue in num_of_selected_residue_loop_set:
-    for skip_connection_mode in ["VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpotf","VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpotn"]:#,"VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
+    for skip_connection_mode in ["VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpotfMSE"]:#,"VAE&hdmsk-4enc-self&batchnorm@p@$20$.50.umapet+100+dpotnMSE"]:#,"VAE&hdmsk-4enc-self-fc&batchnorm@p@$20$.50.umapet+100+"]:#"VAE&hdmsk-4enc-self-fc&batchnorm","VAE&hdmsk-2enc","VAE&hdmsk&batchnorm","VAE&batchnorm","unet&batchnorm","VAE&unet&batchnorm"]:#,,"VAE&hdmsk-2enc","VAE&unet&hdmsk","VAE&hdmsk","VAE","unet&hdmsk"]:#,"unet"]:#,"unet","no"]:
         for multi_task_training_policy in ["no~re-val"]:#,"no~re-ss"]:#,"no~pwre-val"]:#,"no~ran","ROnP~re-val"]:#"no~pwre-val","no~re-val","no~ran","ROnPo~pwre-val"]:#"no~ran","no~re-val","no~pwre-val","no~re-ss","no~norm","no~s-gdnm","no~DRO"]:#,"no","ROnP"]:#"ReduceLROnPlateau"]:
             time_preprocessing_start = time.time()
             justToCheckBaseline = False
             toFillPoint5 = True
+            if justToCheckBaseline:
+                toFillPoint5=False
             toMask = True
             framework = 'pytorch'
             '''
@@ -188,7 +202,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             predict_model_type = "L2"
             data_type = "origin_data"
             dataset_type = "train"
-            isTrain = True #False #True#True#False
+            isTrain = False # False #True #True#False
             toTrainAE = True # False #True
             toTrainNN = True # False #True
             isPredict = True # False #True
@@ -196,7 +210,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             toAddGeneSite = True
             toAddGenePathway = True
             just_check_data = False
-            toValidate = True#False
+            toValidate = True #False
             validate_rate = 0.1
             onlyGetPredictionFromLocalAndCheckAccuracy = False
             lossMode = 'reg_mean'
@@ -215,12 +229,13 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             # 'num' : give a value
             num_of_selected_pathway = num_of_selected_residue / 2  # TODO: to redesgin the function of num_of_selected_pathway
             isMultiDataset = True
+            # if justToCheckBaseline:
+            #     isMultiDataset = False
 
-            datasetNameList = [ 'IBD', 'MS', 'Psoriasis', 'RA',
-                               'SLE','diabetes1']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
+            datasetNameList = [ 'IBD','MS', 'Psoriasis', 'RA','SLE','diabetes1']  # "diabetes1","RA","Psoriasis"]#,"RA","Psoriasis"]#,"Psoriasis","IBD"]# ['diabetes1','Psoriasis','SLE']
             model = None
-            AE_epoch = 800#00#800#200#00#00 # *len(datasetNameList)
-            NN_epoch = 800#00#100#800#200#00#00  # *len(datasetNameList)
+            AE_epoch = 800#800#00#800#200#00#00 # *len(datasetNameList)
+            NN_epoch = 800#800#00#100#800#200#00#00  # *len(datasetNameList)
             batch_size_mode = "ratio"
             batch_size_ratio = 1.0 #1.0
             # if batch_size_mode="ratio",batch_size = int(gene_data_train.shape[1]*batch_size_ratio)
@@ -237,7 +252,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             num_of_selected_residue_list = [2000, 2000, 2000]
             h_dim = 60 * len(datasetNameList)
 
-            date = '23-5-14f0%sAep%d-Site%sPath%s-res%d-lMd-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
+            date = '23-10-9-f0%sAep%d-Site%sPath%s-res%d-lMd-%s-sep%s-%s-pMd%s-btsz%.1f-skpcnt%s-plcy%s' % (
                 (len(datasetNameList) > 1), AE_epoch,  toAddGeneSite, toAddGenePathway, num_of_selected_residue,
                 lossMode,
                 separatelyTrainAE_NN, multiDatasetMode, selectNumPathwayMode, batch_size_ratio, skip_connection_mode,multi_task_training_policy)#NN_epoch,
@@ -816,11 +831,11 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                             print("*" * 20 + "baseline models" + "*" * 20)
                             print(datasetNameList)
                             print("%d" % num_of_selected_residue)
-                            f = open(path + date + "baseline_model_results.txt", 'w')
-
-                            df_baseline = pd.DataFrame.from_dict(csd, orient='index', columns=['ValScore Mean', 'ValScore Std', 'TestScore'])
+                            f = open("./baseline/" + date +code+ "baseline_model_results.txt", 'w')
+                            df_baseline = pd.DataFrame.from_dict(csd, orient='index', columns=['ValScore Mean', 'ValScore Std', 'TestScore', 'AUC Score'])
+                            #df_baseline = pd.DataFrame.from_dict(csd, orient='index', columns=['ValScore Mean', 'ValScore Std', 'TestScore'])
                             # Save the DataFrame as an Excel file
-                            df_baseline.to_excel(path + date + "baseline_model_results.xlsx", sheet_name='Results')
+                            df_baseline.to_excel("./baseline/"+ date+code + "baseline_model_results.xlsx", sheet_name='Results')
                             print(csd)
                         #########################normal train function#########################################
                         if not justToCheckBaseline:
@@ -881,7 +896,7 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                         data_type, model, predict_model_type, residue_name_list, datasetNameList=multi_train_data_and_label_df,
                         separatelyTrainAE_NN=separatelyTrainAE_NN,multiDatasetMode=multiDatasetMode,framework=framework)'''
                 if multiDatasetMode == "pretrain-finetune":# this mode will output values
-                    accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_split_accuracy_list=predict(path, date, code, test_data, test_label, platform,
+                    accuracy_, split_accuracy_list_,auroc_list_, single_trained_accuracy, single_trained_split_accuracy_list,single_trained_auroc_list, finetune_accuracy, finetune_split_accuracy_list,finetune_auroc_list=predict(path, date, code, test_data, test_label, platform,
                         date + "_" + code + "_" + dataset_type + "_model.pickle",
                         model_type, data_type, h_dim, toTrainMeiNN, model, predict_model_type, residue_name_list,
                         toAddGenePathway=toAddGenePathway,
@@ -957,6 +972,9 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
             predict_time=time_predict_end - time_train_end
             print(predict_time)
             if not justToCheckBaseline and ("umapo" not in skip_connection_mode):
+                total_auroc_=np.mean(auroc_list_)
+                single_trained_total_auroc=np.mean(single_trained_auroc_list)
+                finetune_total_auroc=np.mean(finetune_auroc_list)
                 tools.print_parameters_settings(code,date,h_dim,toTrainMeiNN, toAddGenePathway,toAddGeneSite, multiDatasetMode,
                                                                 datasetNameList,
                                                                 num_of_selected_residue,
@@ -969,7 +987,10 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                                                 split_accuracy_list=split_accuracy_list_, total_accuracy=accuracy_,
                                                                 split_accuracy_list2=single_trained_split_accuracy_list,
                                                                 total_accuracy2=single_trained_accuracy,
-                                                                split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,toValidate=toValidate,
+                                                                split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,
+                                                                auroc_list=auroc_list_, total_auroc=total_auroc_, 
+                                                                auroc_list2=single_trained_auroc_list, total_auroc2=single_trained_total_auroc, 
+                                                                auroc_list3=finetune_auroc_list, total_auroc3=finetune_total_auroc,toValidate=toValidate,
                                                                 multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
                                                 preprocess_time=preprocess_time,train_time=train_time,predict_time=predict_time)
                 tools.add_to_result_csv(code, date, h_dim, toTrainMeiNN, toAddGenePathway, toAddGeneSite, multiDatasetMode,
@@ -983,7 +1004,11 @@ for num_of_selected_residue in num_of_selected_residue_loop_set:
                                         framework, skip_connection_mode,
                                         split_accuracy_list=split_accuracy_list_, total_accuracy=accuracy_,
                                         split_accuracy_list2= single_trained_split_accuracy_list, total_accuracy2=single_trained_accuracy,
-                                        split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,toValidate=toValidate,multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
+                                        split_accuracy_list3=finetune_split_accuracy_list, total_accuracy3=finetune_accuracy,
+                                        auroc_list=auroc_list_,total_auroc=total_auroc_,#TODO: check the total auroc for 6 tasks
+                                        auroc_list2=single_trained_auroc_list, total_auroc2=single_trained_total_auroc,
+                                        auroc_list3=finetune_auroc_list, total_auroc3=finetune_total_auroc,
+                                        toValidate=toValidate,multi_task_training_policy=multi_task_training_policy,learning_rate_list=learning_rate_list,
                                         preprocess_time=preprocess_time,train_time=train_time,predict_time=predict_time)
                 #accuracy_, split_accuracy_list_, single_trained_accuracy, single_trained_split_accuracy_list, finetune_accuracy, finetune_s
                 # plit_accuracy_list

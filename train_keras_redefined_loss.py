@@ -81,7 +81,7 @@ TO_PIN_MEMORY=False #True
 REG_SIGN="^"
 MULTI_TASK_SIGN="~"
 SINGLE_TASK_UPPER_BOUND_WEIGHT=0.1
-evaluate_weight_site_pathway_step=20
+evaluate_weight_site_pathway_step=100
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def extract_value_between_signs(input_string, sign="$"):
@@ -629,7 +629,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
             if "*" in skip_connection_mode:
                 ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
             if toValidate:
-                normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list ,auroc_list= tools.evaluate_accuracy_list(
                     datasetNameList, valid_label, valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
                 if "ROnP" in multi_task_training_policy:
                     scheduler.step(accuracy)
@@ -781,7 +781,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 if "*" in skip_connection_mode:
                     ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"MGDA epoch "+str(global_iter_num))
                 if toValidate:
-                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list, auroc_list = tools.evaluate_accuracy_list(
                         datasetNameList, valid_label, valid_y_pred_list,
                         toPrint=False)  # added for validation data#2023-1-8
                     logger.add_scalar("MGDA "+date + code + " " + log_stage_name + ": total validation accuracy",
@@ -938,7 +938,7 @@ def single_train_process(num_epochs,data_loader,datasetNameList,ae,gene_data_tra
                 if "*" in skip_connection_mode:
                     ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+"NashMTL epoch "+str(global_iter_num))
                 if toValidate:
-                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list, auroc_list = tools.evaluate_accuracy_list(
                         datasetNameList, valid_label, valid_y_pred_list,
                         toPrint=False)  # added for validation data#2023-1-8
                     logger.add_scalar("NashMTL "+date + code + " " + log_stage_name + ": total validation accuracy",
@@ -1820,7 +1820,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                     loss += ae.kl_divergence
                                 log_stage_name=""
                                 if toValidate:
-                                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                                    normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list,auroc_list = tools.evaluate_accuracy_list(
                                         datasetNameList, valid_label,
                                         valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
                                     if "ROnP" in multi_task_training_policy:
@@ -2031,7 +2031,7 @@ def run(path, date, code, X_train, y_train, platform, model_type, data_type, HID
                                         ae.save_site_gene_pathway_weight_visualization(info=log_stage_name+" epoch "+str(global_iter_num))
                                     
                                     if toValidate:
-                                        normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list = tools.evaluate_accuracy_list(
+                                        normalized_pred_out, num_wrong_pred, accuracy, split_accuracy_list,auroc_list = tools.evaluate_accuracy_list(
                                             datasetNameList, valid_label,
                                             valid_y_pred_list,toPrint=False)  # added for validation data#2023-1-8
                                         if "ROnP" in multi_task_training_policy:

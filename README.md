@@ -30,6 +30,17 @@ Use following command to run the program:
 python ./main.py
 ```
 
+## How to run benchmark
+1. Traditional (sci-kit learn based) machine learning algorithms benchmark: go to `./main.py`, change the parameter `justToCheckBaseline` as `True`, and change `datasetNameList = [ 'IBD','MS', 'Psoriasis', 'RA','SLE','diabetes1']` into specific dataset you want to test on benchmark, like `datasetNameList = [ 'IBD']`.
+Then run
+  ```
+  python ./main.py
+  ```
+2. NN-based method, single task baseline:
+  ```
+  python ./main_test_single_task.py
+  ```
+
 ## Output of this program
 After run `main.py`:
 
